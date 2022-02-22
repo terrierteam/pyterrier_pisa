@@ -1,0 +1,59 @@
+name: Upload Python Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      releasetype:
+        description: "test or release?"
+        required: true
+        default: 'test'
+      version_suffix:
+        description: "Version suffix"
+        required: false
+        default: ''
+
+jobs:
+  deploy-bdist:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+    - name: install-deps
+      run: |
+        python -m pip install --upgrade pip
+        pip install setuptools wheel twine scikit-build
+    - uses: pypa/cibuildwheel@v2.1.2
+      with:
+        output-dir: wheelhouse
+      env:
+        # HACK: download TBB from official release
+        CIBW_BEFORE_ALL: "yum clean all ; yum check ; yum erase apf ; yum update ca-certificates ; yum upgrade ; yum install -v -y tbb wget ; mkdir /tbb/ ; wget https://github.com/oneapi-src/oneTBB/releases/download/v2020.2/tbb-2020.2-lin.tgz -O /tbb/tbb.tar.gz ; cd /tbb/ ; tar -xzvf tbb.tar.gz ; pip install scikit-build numpy"
+        CIBW_BEFORE_BUILD: "python -m pip install numpy setuptools scikit-build ninja cmake -v"
+        CIBW_BUILD_VERBOSITY: '1'
+        CIBW_ARCHS_LINUX: "x86_64"
+        # Only supports cpython 3.7 - 3.8 on manylinux_x86_64
+        CIBW_BUILD: 'cp37-manylinux_x86_64 cp38-manylinux_x86_64'
+        CIBW_REPAIR_WHEEL_COMMAND: 'auditwheel repair -w {dest_dir} {wheel} ; python patcher.py {dest_dir}'
+        CIBW_ENVIRONMENT: 'PT_PISA_VERSION_SUFFIX="${{github.event.inputs.version_suffix}}" PT_PISA_MANYLINUX="True"'
+    - name: upload Test
+      if: github.event.inputs.releasetype == 'test'
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
+      run: |
+        twine upload --repository testpypi wheelhouse/*
+    - name: upload Release
+      if: github.event.inputs.releasetype == 'release'
+      env:
+        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+      run: |
+        twine upload wheelhouse/*
+    - uses: actions/upload-artifact@v2
+      with:
+        name: bdist-manylinux2010
+        path: wheelhouse/*
