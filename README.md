@@ -41,7 +41,7 @@ index_pipeline.index(dataset.get_corpus_iter())
 `PisaIndex` accepts various other options to configure the indexing process. Most notable are:
  - `stemmer`: Which stemmer to use? Options: `porter2` (default), `krovetz`, `none`
  - `threads`: How many threads to use for indexing? Default: `8`
- - `index_encoding`: Which index encoding to use. Default: ``
+ - `index_encoding`: Which index encoding to use. Default: `block_simdbp`
  - `stops`: Which set of stopwords to use. Default: `terrier`.
 
 
