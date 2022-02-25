@@ -193,6 +193,41 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
     from pyterrier.batchretrieve import _from_dataset
     return _from_dataset(dataset, variant=variant, version=version, clz=PisaIndex, **kwargs)
 
+  @staticmethod
+  def from_ciff(ciff_file: str, index_path, overwrite: bool = False, stemmer = PISA_INDEX_DEFAULTS['stemmer']):
+    import pyciff
+    stemmer = PisaStemmer(stemmer)
+    warn(f"Using stemmer {stemmer}, which may not match the stemmer used to construct {ciff_file}. You may need to instead pass stemmer='none' and perform the stemming in a pipeline to match the behaviour.")
+    if os.path.exists(index_path) and not overwrite:
+      raise FileExistsError(f'An index already exists at {index_path}')
+    ppath = Path(index_path)
+    ppath.mkdir(parents=True, exist_ok=True)
+    pyciff.ciff_to_pisa(ciff_file, str(ppath/'inv'))
+    # Move the files around a bit to where they are typically located
+    (ppath/'inv.documents').rename(ppath/'fwd.documents')
+    (ppath/'inv.terms').rename(ppath/'fwd.terms')
+    # The current version of pyciff does not create a termlex file, but a future version might
+    if (ppath/'inv.termlex').exists():
+      (ppath/'inv.termlex').rename(ppath/'fwd.termlex')
+    else:
+      # If it wasn't created, create one from the terms file
+      _pisathon.build_binlex(str(ppath/'fwd.terms'), str(ppath/'fwd.termlex'))
+    # The current version of pyciff does not create a doclex file, but a future version might
+    if (ppath/'inv.doclex').exists():
+      (ppath/'inv.doclex').rename(ppath/'fwd.doclex')
+    else:
+      # If it wasn't created, create one from the documents file
+      _pisathon.build_binlex(str(ppath/'fwd.documents'), str(ppath/'fwd.doclex'))
+    with open(ppath/'pt_pisa_config.json', 'wt') as fout:
+      json.dump({
+        'stemmer': stemmer.value,
+      }, fout)
+    return PisaIndex(index_path, stemmer=stemmer)
+
+  def to_ciff(self, ciff_file: str, description: str = 'from pyterrier_pisa'):
+    assert self.built()
+    import pyciff
+    pyciff.pisa_to_ciff(str(Path(self.path)/'inv'), str(Path(self.path)/'fwd.terms'), str(Path(self.path)/'fwd.documents'), ciff_file, description)
 
 class PisaRetrieve(pt.transformer.TransformerBase):
   def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, **retr_args):

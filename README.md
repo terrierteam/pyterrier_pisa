@@ -192,6 +192,20 @@ Query algorithms are supplied when you construct a retrieval transformer:
 index.bm25(query_algorithm='ranked_and')
 ```
 
+**Can I import/export from [CIFF](https://github.com/osirrc/ciff)?**
+
+Yes! Using `.from_ciff(ciff_file, index_path)` and `.to_ciff(ciff_file)`
+
+```python
+# from a CIFF export:
+index = PisaIndex.from_ciff('path/to/something.ciff', 'path/to/index.pisa', stemmer='krovetz') # stemmer is optional
+# to a CIFF export:
+index.to_ciff('path/to/something.ciff')
+```
+
+Note that you need to be careful to set stemmer to match whatever was used when constructing the index; CIFF does not directly store which stemmer
+was used when building the index. If it's a stemmer that's not supported by PISA, you can set `stemmer='none'` and apply stemming in a PyTerrier pipeline.
+
 ## References
 
  - [Mallia19]: Antonio Mallia, Michal Siedlaczek, Joel Mackenzie, Torsten Suel. PISA: Performant Indexes and Search for Academia. Proceedings of the Open-Source IR Replicability Challenge. http://ceur-ws.org/Vol-2409/docker08.pdf
