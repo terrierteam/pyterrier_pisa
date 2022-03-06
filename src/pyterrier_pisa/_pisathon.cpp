@@ -74,9 +74,15 @@ namespace fs = boost::filesystem;
 
 
 
-
-
-
+void parse_pretok(std::string&& content, std::function<void(std::string&&)> process)
+{
+    boost::char_separator<char> sep{" \n\t\r"};
+    boost::tokenizer<boost::char_separator<char>> tok(content, sep);
+    //std::for_each(tok.begin(), tok.end(), process);
+    for (auto term_iter = tok.begin(); term_iter != tok.end(); ++term_iter) {
+        process(std::string(*term_iter));
+    }
+}
 
 
 
@@ -86,9 +92,10 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
   const char* stemmer;
   int batch_size;
   int threads;
+  int isPretok;
 
   /* Parse arguments */
-  if(!PyArg_ParseTuple(args, "sssii", &fin, &index_dir, &stemmer, &batch_size, &threads)) {
+  if(!PyArg_ParseTuple(args, "sssiii", &fin, &index_dir, &stemmer, &batch_size, &threads, &isPretok)) {
       return NULL;
   }
 
@@ -105,13 +112,15 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
   }
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, threads + 1);
 
+  auto parser = isPretok == 1 ? parse_pretok : pisa::parse_plaintext_content;
+
   pisa::Forward_Index_Builder fwd_builder;
   fwd_builder.build(
         ifs,
         (f_index_dir/"fwd").string(),
         record_parser("plaintext", ifs),
         pisa::term_processor_builder(stemmer_inp),
-        pisa::parse_plaintext_content,
+        parser,
         batch_size,
         threads);
 
@@ -128,22 +137,6 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
         threads,
         lex_size);
 
-  // TODO: reorder docs for smaller compressed sizes?
-/*
-  pisa::recursive_graph_bisection(RecursiveGraphBisectionOptions{
-                .input_basename = (f_index_dir/"inv").string(),
-                .output_basename = (f_index_dir/"inv.bp").string(),
-                .output_fwd = std::nullopt,
-                .input_fwd = std::nullopt,
-                .document_lexicon = (f_index_dir/"fwd.doclex").string(),
-                .reordered_document_lexicon = (f_index_dir/"fwd.bp.doclex").string(),
-                .depth = std::nullopt,
-                .node_config = std::nullopt,
-                .min_length = 0,
-                .compress_fwd = false,
-                .print_args = false,
-            });
-*/
   Py_END_ALLOW_THREADS
   Py_RETURN_NONE;
 }
@@ -238,7 +231,6 @@ static PyObject *py_prepare_index(PyObject *self, PyObject *args, PyObject *kwar
 }
 
 
-
 static PyObject *py_build_binlex(PyObject *self, PyObject *args, PyObject *kwargs) {
   const char* term_file;
   const char* termlex_file;
@@ -256,8 +248,6 @@ static PyObject *py_build_binlex(PyObject *self, PyObject *args, PyObject *kwarg
 
   Py_RETURN_NONE;
 }
-
-
 
 
 template <typename IndexType, typename WandType, typename ScorerFn>
@@ -367,11 +357,12 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   float pl2_c = -100;
   float qld_mu = -100;
   unsigned int threads = 8;
+  int isPretok = 0;
 
   /* Parse arguments */
-  static const char *kwlist[] = {"index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sssssO|KIffffIsI", const_cast<char **>(kwlist),
-                                     &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &in_queries, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &k, &stop_fname, &threads))
+  static const char *kwlist[] = {"index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", "isPretok", NULL};
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sssssO|KIffffIsIi", const_cast<char **>(kwlist),
+                                     &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &in_queries, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &k, &stop_fname, &threads, &isPretok))
   {
       return NULL;
   }
@@ -438,14 +429,6 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
     spdlog::error("Unknown type {}", encoding);
   }
 
-  if (strcmp(encoding, "ef") == 0) {
-    index = new freq_index<compact_elias_fano, positive_sequence<strict_elias_fano>>(MemorySource::mapped_file(index_path));
-    query_fun = get_query_processor<freq_index<compact_elias_fano, positive_sequence<strict_elias_fano>>>((freq_index<compact_elias_fano, positive_sequence<strict_elias_fano>>*)index, wdata, algorithm, k, scorerf);
-  } else if (strcmp(encoding, "block_simdbp") == 0) {
-    index = new block_freq_index<pisa::simdbp_block>(MemorySource::mapped_file(index_path));
-    query_fun = get_query_processor<block_freq_index<pisa::simdbp_block>, wand_data<wand_data_raw>>((block_freq_index<pisa::simdbp_block>*)index, wdata, algorithm, k, scorerf);
-  }
-
   auto source = std::make_shared<mio::mmap_source>(documents_path.string().c_str());
   auto docmap = Payload_Vector<>::from(*source);
   npy_intp arr_size[] = {(npy_intp)in_queries_len * (npy_intp)k};
@@ -471,12 +454,23 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
             break;
           }
           PyArg_ParseTuple(res, "ss", &qid, &qtext);
-          TermTokenizer tokenizer(qtext);
           std::vector<term_id_type> parsed_query;
-          for (auto term_iter = tokenizer.begin(); term_iter != tokenizer.end(); ++term_iter) {
-            auto raw_term = *term_iter;
-            auto term = term_processor(raw_term);
-            if (term && !term_processor.is_stopword(*term)) parsed_query.push_back(*term);
+          if (isPretok == 0) {
+            TermTokenizer tok(qtext);
+            for (auto term_iter = tok.begin(); term_iter != tok.end(); ++term_iter) {
+              auto raw_term = *term_iter;
+              auto term = term_processor(raw_term);
+              if (term && !term_processor.is_stopword(*term)) parsed_query.push_back(*term);
+            }
+          } else {
+            boost::char_separator<char> sep{" \n\t\r"};
+            std::string sqtext(qtext);
+            boost::tokenizer<boost::char_separator<char>> tok(sqtext, sep);
+            for (auto term_iter = tok.begin(); term_iter != tok.end(); ++term_iter) {
+              std::string raw_term(*term_iter);
+              auto term = term_processor(raw_term);
+              if (term && !term_processor.is_stopword(*term)) parsed_query.push_back(*term);
+            }
           }
           Query query = {std::move(qid), std::move(parsed_query), {}};
           Py_DECREF(res);

@@ -83,6 +83,7 @@ PISA_INDEX_DEFAULTS = {
   'index_encoding': PisaIndexEncoding.block_simdbp,
   'query_algorithm': PisaQueryAlgorithm.block_max_wand,
   'stops': PisaStopwords.terrier,
+  'pretokenised': False,
 }
 
 
@@ -99,7 +100,8 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
       batch_size: int = 100_000,
       stops: Optional[Union[PisaStopwords, List[str]]] = None,
       threads: int = 8,
-      overwrite=False):
+      overwrite=False,
+      pretokenised: int = None):
     self.path = path
     ppath = Path(path)
     if stemmer is not None: stemmer = PisaStemmer(stemmer)
@@ -112,9 +114,14 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
         stemmer = PisaStemmer(config['stemmer'])
       if stemmer.value != config['stemmer']:
         warn(f'requested stemmer={stemmer.value}, but index was constructed with {config["stemmer"]}')
+      if pretokenised is None:
+        pretokenised = config.get('pretokenised', PISA_INDEX_DEFAULTS['pretokenised'])
+      if pretokenised != config.get('pretokenised', PISA_INDEX_DEFAULTS['pretokenised']):
+        warn(f"requested pretokenised={pretokenised}, but index was constructed with pretokenised={config.get('pretokenised', PISA_INDEX_DEFAULTS['pretokenised'])}")
     if stemmer is None: stemmer = PISA_INDEX_DEFAULTS['stemmer']
     if index_encoding is None: index_encoding = PISA_INDEX_DEFAULTS['index_encoding']
     if stops is None: stops = PISA_INDEX_DEFAULTS['stops']
+    if pretokenised is None: stops = PISA_INDEX_DEFAULTS['pretokenised']
     self.text_field = text_field
     self.stemmer = stemmer
     self.index_encoding = index_encoding
@@ -122,6 +129,7 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
     self.threads = threads
     self.overwrite = overwrite
     self.stops = stops
+    self.pretokenised = pretokenised
 
   def transform(self, *args, **kwargs):
     raise RuntimeError(f'You cannot use {self} itself as a transformer. Did you mean to call a ranking function like .bm25()?')
@@ -143,7 +151,7 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
           raise RuntimeError('A PISA index already exists at {self.path}. If you want to overwrite it, pass overwrite=True to PisaIndex.')
       if not ppath.exists():
         ppath.mkdir(parents=True, exist_ok=True)
-      _pisathon.index(fifo, self.path, '' if self.stemmer == PisaStemmer.none else self.stemmer.value, self.batch_size, self.threads)
+      _pisathon.index(fifo, self.path, '' if self.stemmer == PisaStemmer.none else self.stemmer.value, self.batch_size, self.threads, 1 if self.pretokenised else 0)
       with open(ppath/'pt_pisa_config.json', 'wt') as fout:
         json.dump({
           'stemmer': self.stemmer.value,
@@ -271,6 +279,7 @@ class PisaRetrieve(pt.transformer.TransformerBase):
         k=self.num_results,
         threads=self.threads,
         stop_fname=self._stops_fname(d),
+        isPretok=1 if self.index.pretokenised else 0,
         **self.retr_args)
     idxs = np.vectorize(mapping.__getitem__, otypes=[np.int32])(qids)
     df = {'qid': qids, 'docno': docnos, 'rank': ranks, 'score': scores}
