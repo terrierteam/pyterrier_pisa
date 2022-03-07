@@ -283,7 +283,7 @@ class PisaRetrieve(pt.transformer.TransformerBase):
         **self.retr_args)
     idxs = np.vectorize(mapping.__getitem__, otypes=[np.int32])(qids)
     df = {'qid': qids, 'docno': docnos, 'rank': ranks, 'score': scores}
-    df.update({c: queries[c].iloc[idxs] for c in queries.columns if c != 'qid'})
+    df.update({c: queries[c].iloc[idxs].reset_index(drop=True) for c in queries.columns if c != 'qid'})
     return pd.DataFrame(df)
 
   def __repr__(self):
