@@ -142,6 +142,24 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
 }
 
 
+static PyObject *py_merge_inv(PyObject *self, PyObject *args) {
+  const char* fin;
+  int batch_count;
+  int term_count;
+
+  /* Parse arguments */
+  if(!PyArg_ParseTuple(args, "sii", &fin, &batch_count, &term_count)) {
+      return NULL;
+  }
+
+  printf("%s %i %i\n", fin, batch_count, term_count);
+
+  pisa::invert::merge_batches(fin, batch_count, term_count);
+
+  Py_RETURN_NONE;
+}
+
+
 static PyObject *py_num_terms(PyObject *self, PyObject *args, PyObject *kwargs) {
   const char* index_dir;
   if(!PyArg_ParseTuple(args, "s", &index_dir)) {
@@ -559,6 +577,7 @@ static PyObject *py_log_level(PyObject *self, PyObject *args, PyObject *kwargs) 
 
 static PyMethodDef pisathon_methods[] = {
   {"index", py_index, METH_VARARGS, "index"},
+  {"merge_inv", py_merge_inv, METH_VARARGS, "merge_inv"},
   {"prepare_index", (PyCFunction) py_prepare_index, METH_VARARGS | METH_KEYWORDS, "prepare_index"},
   {"retrieve", (PyCFunction)py_retrieve, METH_VARARGS | METH_KEYWORDS, "retrieve"},
   {"num_terms", (PyCFunction)py_num_terms, METH_VARARGS, "num_terms"},

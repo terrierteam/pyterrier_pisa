@@ -16,7 +16,10 @@ from collections import Counter
 import pyterrier as pt
 from pyterrier.datasets import Dataset
 import functools
+from collections import defaultdict
+import ir_datasets
 
+_logger = ir_datasets.log.easy()
 
 class PisaStemmer(Enum):
   """
@@ -137,25 +140,31 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
   def built(self):
     return (Path(self.path)/'pt_pisa_config.json').exists()
 
-  def index(self, inp):
-    with tempfile.TemporaryDirectory() as d:
-      fifo = os.path.join(d, 'fifo')
-      os.mkfifo(fifo)
-      threading.Thread(target=self._write_fifo, args=(inp, fifo), daemon=True).start()
-      ppath = Path(self.path)
-      if self.built():
-        if self.overwrite:
-          warn(f'Removing {str(ppath)}')
-          shutil.rmtree(ppath)
-        else:
-          raise RuntimeError('A PISA index already exists at {self.path}. If you want to overwrite it, pass overwrite=True to PisaIndex.')
-      if not ppath.exists():
-        ppath.mkdir(parents=True, exist_ok=True)
-      _pisathon.index(fifo, self.path, '' if self.stemmer == PisaStemmer.none else self.stemmer.value, self.batch_size, self.threads, 1 if self.pretokenised else 0)
-      with open(ppath/'pt_pisa_config.json', 'wt') as fout:
-        json.dump({
-          'stemmer': self.stemmer.value,
-        }, fout)
+  def index(self, it):
+    ppath = Path(self.path)
+    if self.built():
+      if self.overwrite:
+        warn(f'Removing {str(ppath)}')
+        shutil.rmtree(ppath)
+      else:
+        raise RuntimeError('A PISA index already exists at {self.path}. If you want to overwrite it, pass overwrite=True to PisaIndex.')
+    if not ppath.exists():
+      ppath.mkdir(parents=True, exist_ok=True)
+    it = more_itertools.peekable(it)
+    first_doc = it.peek()
+    if isinstance(self.text_field, str) and isinstance(first_doc[self.text_field], dict):
+      assert self.stemmer.value == 'none', "To index from dicts, you must set stemmer='none'"
+      self._index_dicts(it)
+    else:
+      with tempfile.TemporaryDirectory() as d:
+        fifo = os.path.join(d, 'fifo')
+        os.mkfifo(fifo)
+        threading.Thread(target=self._write_fifo, args=(it, fifo), daemon=True).start()
+        _pisathon.index(fifo, self.path, '' if self.stemmer == PisaStemmer.none else self.stemmer.value, self.batch_size, self.threads, 1 if self.pretokenised else 0)
+    with open(ppath/'pt_pisa_config.json', 'wt') as fout:
+      json.dump({
+        'stemmer': self.stemmer.value,
+      }, fout)
 
   def _write_fifo(self, it, fifo):
     with open(fifo, 'wt') as fout:
@@ -172,6 +181,62 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
         docno, text = doc['docno'], ' '.join(doc[f] for f in text_field)
         text = text.replace('\n', ' ').replace('\r', ' ') # any other cleanup?
         fout.write(f'{docno} {text}\n')
+
+  def _index_dicts(self, it):
+    lexicon = {}
+    path = Path(self.path)
+    docid = 0
+    with (path/'fwd.documents').open('wt') as f_docs, (path/'fwd.terms').open('wt') as f_lex:
+      for bidx, batch in enumerate(more_itertools.chunked(it, self.batch_size)):
+        _logger.info(f'inverting batch {bidx}: documents [{docid},{docid+len(batch)})')
+        inv_did = defaultdict(list)
+        inv_score = defaultdict(list)
+        lens = []
+        for doc in batch:
+          l = 0
+          f_docs.write(doc['docno']+'\n')
+          for term, score in doc[self.text_field].items():
+            score = int(score)
+            if score <= 0:
+              continue
+            l += score
+            if term not in lexicon:
+              lexicon[term] = len(lexicon)
+              f_lex.write(term+'\n')
+            inv_did[lexicon[term]].append(docid)
+            inv_score[lexicon[term]].append(int(score))
+          lens.append(l)
+          docid += 1
+        with (path/f'inv.batch.{bidx}.docs').open('wb') as f_did, (path/f'inv.batch.{bidx}.freqs').open('wb') as f_score, (path/f'inv.batch.{bidx}.sizes').open('wb') as f_len:
+          f_did.write(np.array([1, len(batch)], dtype=np.uint32).tobytes())
+          for i in range(len(lexicon)):
+            if i in inv_did:
+              l = len(inv_did[i])
+              f_did.write(np.array([l] + inv_did[i], dtype=np.uint32).tobytes())
+              f_score.write(np.array([l] + inv_score[i], dtype=np.uint32).tobytes())
+          f_len.write(np.array([len(lens)] + lens, dtype=np.uint32).tobytes())
+    _pisathon.merge_inv(str(path/'inv'), bidx+1, len(lexicon))
+    (path/'inv.docs').rename(path/'inv.docs.tmp')
+    (path/'inv.freqs').rename(path/'inv.freqs.tmp')
+    in_docs = np.memmap(path/'inv.docs.tmp', mode='r', dtype=np.uint32)
+    in_freqs = np.memmap(path/'inv.freqs.tmp', mode='r', dtype=np.uint32)
+    with (path/'fwd.terms').open('wt') as f_lex, (path/'inv.docs').open('wb') as f_docs, (path/'inv.freqs').open('wb') as f_freqs:
+      f_docs.write(in_docs[:2].tobytes())
+      in_docs = in_docs[2:]
+      offsets_lens = []
+      i = 0
+      while i < in_docs.shape[0]:
+        offsets_lens.append((i, in_docs[i]+1))
+        i += in_docs[i] + 1
+      print(len(offsets_lens))
+      for term in _logger.pbar(sorted(lexicon), desc='re-mapping term ids'):
+        f_lex.write(f'{term}\n')
+        i = lexicon[term]
+        start, l = offsets_lens[i]
+        f_docs.write(in_docs[start:start+l])
+        f_freqs.write(in_freqs[start:start+l])
+    _pisathon.build_binlex(str(path/'fwd.documents'), str(path/'fwd.doclex'))
+    _pisathon.build_binlex(str(path/'fwd.terms'), str(path/'fwd.termlex'))
 
   def bm25(self, k1=0.9, b=0.4, num_results=1000, verbose=False, threads=None, query_algorithm=None):
     return PisaRetrieve(self, scorer=PisaScorer.bm25, bm25_k1=k1, bm25_b=b, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm)
@@ -236,6 +301,22 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
     assert self.built()
     import pyciff
     pyciff.pisa_to_ciff(str(Path(self.path)/'inv'), str(Path(self.path)/'fwd.terms'), str(Path(self.path)/'fwd.documents'), ciff_file, description)
+
+  def get_corpus_iter(self, field='text_dict', verbose=True):
+    assert self.built()
+    ppath = Path(self.path)
+    assert (ppath/'fwd').exists(), "get_corpus_iter requires a fwd index"
+    m = np.memmap(ppath/'fwd', mode='r', dtype=np.uint32)
+    lexicon = [l.strip() for l in (ppath/'fwd.terms').open('rt')]
+    idx = 2
+    it = iter((ppath/'fwd.documents').open('rt'))
+    if verbose:
+      it = _logger.pbar(it, total=int(m[1]), desc=f'iterating documents in {self}', unit='doc')
+    for did in it:
+      start = idx + 1
+      end = start + m[idx]
+      yield {'docno': did.strip(), field: dict(Counter(lexicon[i] for i in m[start:end]))}
+      idx = end
 
 class PisaRetrieve(pt.transformer.TransformerBase):
   def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, **retr_args):
@@ -371,6 +452,16 @@ def main_retrieve(args):
     res = retr(batch)
     for r in res.itertuples(index=False):
       sys.stdout.write(f'{r.qid} 0 {r.docno} {r.rank} {r.score:.4f} pt_pisa\n')
+
+class DictTokeniser(pt.transformer.TransformerBase):
+  def __init__(self, field='text', stemmer=None):
+    super().__init__()
+    self.field = field
+    self.stemmer = stemmer or (lambda x: x)
+
+  def transform(self, inp):
+    from nltk import word_tokenize
+    return inp.assign(**{f'{self.field}_dict': inp[self.field].map(lambda x: dict(Counter(self.stemmer(t) for t in word_tokenize(x.lower()) if t.isalnum() )))})
 
 if __name__ == '__main__':
   main()
