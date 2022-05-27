@@ -318,6 +318,7 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
       yield {'docno': did.strip(), field: dict(Counter(lexicon[i] for i in m[start:end]))}
       idx = end
 
+
 class PisaRetrieve(pt.transformer.TransformerBase):
   def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, **retr_args):
     if isinstance(index, PisaIndex):
