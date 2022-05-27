@@ -220,6 +220,8 @@ static PyObject *py_prepare_index(PyObject *self, PyObject *args, PyObject *kwar
   Py_RETURN_NONE;
 }
 
+
+
 static PyObject *py_build_binlex(PyObject *self, PyObject *args, PyObject *kwargs) {
   const char* term_file;
   const char* termlex_file;
@@ -330,6 +332,8 @@ static std::function<std::vector<std::pair<float, uint64_t>>(Query)> get_query_p
 }
 
 
+
+
 static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   const char* index_dir;
   const char* encoding;
@@ -405,6 +409,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
 
   void* index = NULL;
 
+  /**/
   if (false) {  // NOLINT
 #define LOOP_BODY(R, DATA, T)                                                                    \
   }                                                                                              \
@@ -418,6 +423,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   } else {
     spdlog::error("Unknown type {}", encoding);
   }
+  /**/
 
   auto source = std::make_shared<mio::mmap_source>(documents_path.string().c_str());
   auto docmap = Payload_Vector<>::from(*source);
