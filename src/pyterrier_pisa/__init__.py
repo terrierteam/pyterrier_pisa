@@ -17,6 +17,7 @@ import pyterrier as pt
 from pyterrier.datasets import Dataset
 import functools
 
+
 class PisaStemmer(Enum):
   """
   Represents a built-in stemming function from PISA
@@ -145,10 +146,10 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
       os.mkfifo(fifo)
       threading.Thread(target=self._write_fifo, args=(it, fifo), daemon=True).start()
       _pisathon.index(fifo, self.path, '' if self.stemmer == PisaStemmer.none else self.stemmer.value, self.batch_size, self.threads)
-    with open(ppath/'pt_pisa_config.json', 'wt') as fout:
-      json.dump({
-        'stemmer': self.stemmer.value,
-      }, fout)
+      with open(ppath/'pt_pisa_config.json', 'wt') as fout:
+        json.dump({
+          'stemmer': self.stemmer.value,
+        }, fout)
 
   def _write_fifo(self, it, fifo):
     with open(fifo, 'wt') as fout:
@@ -229,7 +230,6 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
     assert self.built()
     import pyciff
     pyciff.pisa_to_ciff(str(Path(self.path)/'inv'), str(Path(self.path)/'fwd.terms'), str(Path(self.path)/'fwd.documents'), ciff_file, description)
-
 
 class PisaRetrieve(pt.transformer.TransformerBase):
   def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, **retr_args):
