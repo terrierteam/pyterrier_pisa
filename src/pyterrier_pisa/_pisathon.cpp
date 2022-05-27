@@ -357,7 +357,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
 
   /* Parse arguments */
   static const char *kwlist[] = {"index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", "result_qids", "result_docnos", "result_ranks", "result_scores", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sssssO|KIffffIsIiw*w*w*w*", const_cast<char **>(kwlist),
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sssssO|KIffffIsIw*w*w*w*", const_cast<char **>(kwlist),
                                      &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &in_queries, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &k, &stop_fname, &threads, &result_qids, &result_docnos, &result_ranks, &result_scores))
   {
       return NULL;
