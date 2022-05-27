@@ -350,7 +350,16 @@ class PisaRetrieve(pt.transformer.TransformerBase):
     if self.verbose:
       inp = pt.tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
     with tempfile.TemporaryDirectory() as d:
-      qids, docnos, ranks, scores = _pisathon.retrieve(
+      from array import array
+      #result_qids = array('i')
+      #result_docnos = array('i')
+      #result_ranks = array('i')
+      #result_scores = array('i')
+      result_qids = np.empty((len(queries)*self.num_results,), dtype=object)
+      result_docnos = np.empty((len(queries)*self.num_results,), dtype=object)
+      result_ranks = np.empty((len(queries)*self.num_results,), dtype=np.int32)
+      result_scores = np.empty((len(queries)*self.num_results,), dtype=np.float32)
+      size = _pisathon.retrieve_new(
         self.index.path,
         self.index.index_encoding.value,
         self.query_algorithm.value,
@@ -361,9 +370,17 @@ class PisaRetrieve(pt.transformer.TransformerBase):
         threads=self.threads,
         stop_fname=self._stops_fname(d),
         isPretok=1 if self.index.pretokenised else 0,
+        result_qids=result_qids,
+        result_docnos=result_docnos,
+        result_ranks=result_ranks,
+        result_scores=result_scores,
         **self.retr_args)
-    idxs = np.vectorize(mapping.__getitem__, otypes=[np.int32])(qids)
-    df = {'qid': qids, 'docno': docnos, 'rank': ranks, 'score': scores}
+    result_qids = result_qids[:size]
+    result_docnos = result_docnos[:size]
+    result_ranks = result_ranks[:size]
+    result_scores = result_scores[:size]
+    idxs = np.vectorize(mapping.__getitem__, otypes=[np.int32])(result_qids)
+    df = {'qid': result_qids, 'docno': result_docnos, 'rank': result_ranks, 'score': result_scores}
     df.update({c: queries[c].iloc[idxs].reset_index(drop=True) for c in queries.columns if c != 'qid'})
     return pd.DataFrame(df)
 
