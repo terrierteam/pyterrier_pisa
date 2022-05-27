@@ -351,16 +351,12 @@ class PisaRetrieve(pt.transformer.TransformerBase):
     if self.verbose:
       inp = pt.tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
     with tempfile.TemporaryDirectory() as d:
-      from array import array
-      #result_qids = array('i')
-      #result_docnos = array('i')
-      #result_ranks = array('i')
-      #result_scores = array('i')
-      result_qids = np.empty((len(queries)*self.num_results,), dtype=object)
-      result_docnos = np.empty((len(queries)*self.num_results,), dtype=object)
-      result_ranks = np.empty((len(queries)*self.num_results,), dtype=np.int32)
-      result_scores = np.empty((len(queries)*self.num_results,), dtype=np.float32)
-      size = _pisathon.retrieve_new(
+      shape = (len(queries) * self.num_results,)
+      result_qids = np.empty(shape, dtype=object)
+      result_docnos = np.empty(shape, dtype=object)
+      result_ranks = np.empty(shape, dtype=np.int32)
+      result_scores = np.empty(shape, dtype=np.float32)
+      size = _pisathon.retrieve(
         self.index.path,
         self.index.index_encoding.value,
         self.query_algorithm.value,

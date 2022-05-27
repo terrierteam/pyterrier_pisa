@@ -63,7 +63,6 @@
 #include <spdlog/spdlog.h>
 
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-//#include <numpy/arrayobject.h>
 
 using pisa::Document_Record;
 using pisa::Forward_Index_Builder;
@@ -579,7 +578,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
 */
 
 
-static PyObject *py_retrieve_new(PyObject *self, PyObject *args, PyObject *kwargs) {
+static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   const char* index_dir;
   const char* encoding;
   const char* algorithm;
@@ -787,8 +786,7 @@ static PyMethodDef pisathon_methods[] = {
   {"index", py_index, METH_VARARGS, "index"},
   {"merge_inv", py_merge_inv, METH_VARARGS, "merge_inv"},
   {"prepare_index", (PyCFunction) py_prepare_index, METH_VARARGS | METH_KEYWORDS, "prepare_index"},
-  //{"retrieve", (PyCFunction)py_retrieve, METH_VARARGS | METH_KEYWORDS, "retrieve"},
-  {"retrieve_new", (PyCFunction)py_retrieve_new, METH_VARARGS | METH_KEYWORDS, "retrieve_new"},
+  {"retrieve", (PyCFunction)py_retrieve_new, METH_VARARGS | METH_KEYWORDS, "retrieve"},
   {"num_terms", (PyCFunction)py_num_terms, METH_VARARGS, "num_terms"},
   {"num_docs", (PyCFunction)py_num_docs, METH_VARARGS, "num_docs"},
   {"log_level", (PyCFunction)py_log_level, METH_VARARGS, "log_level"},
