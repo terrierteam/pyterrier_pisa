@@ -63,7 +63,6 @@
 #include <spdlog/spdlog.h>
 
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include <numpy/arrayobject.h>
 
 using pisa::Document_Record;
 using pisa::Forward_Index_Builder;
@@ -128,22 +127,6 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
         threads,
         lex_size);
 
-  // TODO: reorder docs for smaller compressed sizes?
-/*
-  pisa::recursive_graph_bisection(RecursiveGraphBisectionOptions{
-                .input_basename = (f_index_dir/"inv").string(),
-                .output_basename = (f_index_dir/"inv.bp").string(),
-                .output_fwd = std::nullopt,
-                .input_fwd = std::nullopt,
-                .document_lexicon = (f_index_dir/"fwd.doclex").string(),
-                .reordered_document_lexicon = (f_index_dir/"fwd.bp.doclex").string(),
-                .depth = std::nullopt,
-                .node_config = std::nullopt,
-                .min_length = 0,
-                .compress_fwd = false,
-                .print_args = false,
-            });
-*/
   Py_END_ALLOW_THREADS
   Py_RETURN_NONE;
 }
@@ -367,11 +350,15 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   float pl2_c = -100;
   float qld_mu = -100;
   unsigned int threads = 8;
+  Py_buffer result_qids;
+  Py_buffer result_docnos;
+  Py_buffer result_ranks;
+  Py_buffer result_scores;
 
   /* Parse arguments */
-  static const char *kwlist[] = {"index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sssssO|KIffffIsI", const_cast<char **>(kwlist),
-                                     &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &in_queries, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &k, &stop_fname, &threads))
+  static const char *kwlist[] = {"index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", "result_qids", "result_docnos", "result_ranks", "result_scores", NULL};
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sssssO|KIffffIsIw*w*w*w*", const_cast<char **>(kwlist),
+                                     &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &in_queries, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &k, &stop_fname, &threads, &result_qids, &result_docnos, &result_ranks, &result_scores))
   {
       return NULL;
   }
@@ -430,38 +417,29 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   {                                                                                              \
     index = new BOOST_PP_CAT(T, _index)(MemorySource::mapped_file(index_path));                  \
     query_fun = get_query_processor<BOOST_PP_CAT(T, _index)>((BOOST_PP_CAT(T, _index)*)index, wdata, algorithm, k, scorerf); \
-    /**/
 
     BOOST_PP_SEQ_FOR_EACH(LOOP_BODY, _, PISA_INDEX_TYPES);
 #undef LOOP_BODY
   } else {
     spdlog::error("Unknown type {}", encoding);
   }
-
-  if (strcmp(encoding, "ef") == 0) {
-    index = new freq_index<compact_elias_fano, positive_sequence<strict_elias_fano>>(MemorySource::mapped_file(index_path));
-    query_fun = get_query_processor<freq_index<compact_elias_fano, positive_sequence<strict_elias_fano>>>((freq_index<compact_elias_fano, positive_sequence<strict_elias_fano>>*)index, wdata, algorithm, k, scorerf);
-  } else if (strcmp(encoding, "block_simdbp") == 0) {
-    index = new block_freq_index<pisa::simdbp_block>(MemorySource::mapped_file(index_path));
-    query_fun = get_query_processor<block_freq_index<pisa::simdbp_block>, wand_data<wand_data_raw>>((block_freq_index<pisa::simdbp_block>*)index, wdata, algorithm, k, scorerf);
-  }
+  /**/
 
   auto source = std::make_shared<mio::mmap_source>(documents_path.string().c_str());
   auto docmap = Payload_Vector<>::from(*source);
-  npy_intp arr_size[] = {(npy_intp)in_queries_len * (npy_intp)k};
-  auto result_qids = (PyArrayObject*)PyArray_SimpleNew(1, arr_size, NPY_OBJECT);
-  auto result_docnos = (PyArrayObject*)PyArray_SimpleNew(1, arr_size, NPY_OBJECT);
-  auto result_ranks = (PyArrayObject*)PyArray_SimpleNew(1, arr_size, NPY_INT);
-  auto result_scores = (PyArrayObject*)PyArray_SimpleNew(1, arr_size, NPY_FLOAT);
+  PyObject **qids = (PyObject**)result_qids.buf;
+  PyObject **docnos = (PyObject**)result_docnos.buf;
+  int32_t *ranks = (int32_t*)result_ranks.buf;
+  float_t *scores = (float_t*)result_scores.buf;
   auto iter = PyObject_GetIter(in_queries);
   tbb::spin_mutex mutex;
-  npy_intp arr_idx = 0;
+  size_t arr_idx = 0;
   tbb::parallel_for(size_t(0), size_t(threads), [&, query_fun](size_t thread_idx) {
         PyObject* res;
         const char* qid;
         const char* qtext;
         mutex.lock();
-        auto docnos = new std::string[k];
+        auto docnos_tmp = new std::string[k];
         while (1) {
           if (PyErr_CheckSignals() != 0) {
             break;
@@ -471,9 +449,9 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
             break;
           }
           PyArg_ParseTuple(res, "ss", &qid, &qtext);
-          TermTokenizer tokenizer(qtext);
           std::vector<term_id_type> parsed_query;
-          for (auto term_iter = tokenizer.begin(); term_iter != tokenizer.end(); ++term_iter) {
+          TermTokenizer tok(qtext);
+          for (auto term_iter = tok.begin(); term_iter != tok.end(); ++term_iter) {
             auto raw_term = *term_iter;
             auto term = term_processor(raw_term);
             if (term && !term_processor.is_stopword(*term)) parsed_query.push_back(*term);
@@ -483,40 +461,33 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
           mutex.unlock();
           auto query_res = query_fun(query);
           mutex.lock();
-          auto qids_ptr = (PyObject**)PyArray_GETPTR1(result_qids, arr_idx);
-          auto docnos_ptr = (PyObject**)PyArray_GETPTR1(result_docnos, arr_idx);
-          auto ranks_ptr = (int*)PyArray_GETPTR1(result_ranks, arr_idx);
-          auto scores_ptr = (float*)PyArray_GETPTR1(result_scores, arr_idx);
           auto pyqid = PyUnicode_FromString(query.id->c_str());
           auto count = query_res.size();
+          size_t start = arr_idx;
+          size_t i = 0;
           arr_idx += count;
           mutex.unlock();
-          size_t i = 0;
           for (auto r: query_res) {
-            docnos[i] = docmap[r.second];
+            docnos_tmp[i] = docmap[r.second];
             //auto rdocno = docmap[r.second];
             //auto docno = PyUnicode_FromStringAndSize(rdocno.data(), rdocno.length());
-            qids_ptr[0] = pyqid; // assigning multiple times, need to incref (done below)
-            ranks_ptr[0] = i++;
-            scores_ptr[0] = r.first;
-            qids_ptr++; ranks_ptr++; scores_ptr++;
+            qids[start+i] = pyqid; // assigning multiple times, need to incref (done below)
+            ranks[start+i] = i;
+            scores[start+i] = r.first;
+            i++;
           }
           mutex.lock();
-          for (int i=0; i<count; ++i) {
-            auto docno = PyUnicode_FromStringAndSize(docnos[i].data(), docnos[i].length());
-            docnos_ptr[0] = docno; // takes ownership, shouldn't decref
-            docnos_ptr++;
+          for (i=0; i<count; ++i) {
+            auto docno = PyUnicode_FromStringAndSize(docnos_tmp[i].data(), docnos_tmp[i].length());
+            docnos[start+i] = docno; // takes ownership, shouldn't decref
             Py_INCREF(pyqid); // corresponding to above
           }
           Py_DECREF(pyqid); // remove last ref
         }
       mutex.unlock();
-      delete [] docnos;
+      delete [] docnos_tmp;
   });
   Py_DECREF(iter);
-  if (PyErr_CheckSignals() != 0) {
-    return NULL;
-  }
 
   if (false) {  // NOLINT
 #define LOOP_BODY(R, DATA, T)                                                                    \
@@ -524,26 +495,21 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   else if (strcmp(encoding, BOOST_PP_STRINGIZE(T)) == 0)                                         \
   {                                                                                              \
     delete (BOOST_PP_CAT(T, _index)*)index;                                                      \
-    /**/
 
     BOOST_PP_SEQ_FOR_EACH(LOOP_BODY, _, PISA_INDEX_TYPES);
 #undef LOOP_BODY
   }
   delete wdata;
 
-  // We may not need all the space allocated (e.g., if a query returned fewer than k results). So shrink.
-  arr_size[0] = arr_idx;
-  PyArray_Dims newshape {arr_size, 1};
-  PyArray_Resize(result_qids, &newshape, 0, NPY_CORDER);
-  PyArray_Resize(result_docnos, &newshape, 0, NPY_CORDER);
-  PyArray_Resize(result_ranks, &newshape, 0, NPY_CORDER);
-  PyArray_Resize(result_scores, &newshape, 0, NPY_CORDER);
+  PyBuffer_Release(&result_qids);
+  PyBuffer_Release(&result_docnos);
+  PyBuffer_Release(&result_ranks);
+  PyBuffer_Release(&result_scores);
+  PyObject *result = PyLong_FromLong(arr_idx);
 
-  PyObject* result = Py_BuildValue("(OOOO)", (PyObject*)result_qids, (PyObject*)result_docnos, (PyObject*)result_ranks, (PyObject*)result_scores);
-  Py_DECREF(result_qids);
-  Py_DECREF(result_docnos);
-  Py_DECREF(result_ranks);
-  Py_DECREF(result_scores);
+  if (PyErr_CheckSignals() != 0) {
+    return NULL;
+  }
 
   return result;
 }
@@ -578,7 +544,6 @@ static PyMethodDef pisathon_methods[] = {
 #if PY_MAJOR_VERSION < 3
 PyMODINIT_FUNC init__pisathon(void)
 {
-  import_array();
   (void) Py_InitModule("_pisathon", pisathon_methods);
 }
 #else /* PY_MAJOR_VERSION >= 3 */
@@ -592,7 +557,6 @@ static struct PyModuleDef pisathon_module_def = {
 
 PyMODINIT_FUNC PyInit__pisathon(void)
 {
-  import_array();
   return PyModule_Create(&pisathon_module_def);
 }
 #endif /* PY_MAJOR_VERSION >= 3 */

@@ -129,20 +129,22 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
   def built(self):
     return (Path(self.path)/'pt_pisa_config.json').exists()
 
-  def index(self, inp):
+  def index(self, it):
+    ppath = Path(self.path)
+    if self.built():
+      if self.overwrite:
+        warn(f'Removing {str(ppath)}')
+        shutil.rmtree(ppath)
+      else:
+        raise RuntimeError('A PISA index already exists at {self.path}. If you want to overwrite it, pass overwrite=True to PisaIndex.')
+    if not ppath.exists():
+      ppath.mkdir(parents=True, exist_ok=True)
+    it = more_itertools.peekable(it)
+    first_doc = it.peek()
     with tempfile.TemporaryDirectory() as d:
       fifo = os.path.join(d, 'fifo')
       os.mkfifo(fifo)
-      threading.Thread(target=self._write_fifo, args=(inp, fifo), daemon=True).start()
-      ppath = Path(self.path)
-      if self.built():
-        if self.overwrite:
-          warn(f'Removing {str(ppath)}')
-          shutil.rmtree(ppath)
-        else:
-          raise RuntimeError('A PISA index already exists at {self.path}. If you want to overwrite it, pass overwrite=True to PisaIndex.')
-      if not ppath.exists():
-        ppath.mkdir(parents=True, exist_ok=True)
+      threading.Thread(target=self._write_fifo, args=(it, fifo), daemon=True).start()
       _pisathon.index(fifo, self.path, '' if self.stemmer == PisaStemmer.none else self.stemmer.value, self.batch_size, self.threads)
       with open(ppath/'pt_pisa_config.json', 'wt') as fout:
         json.dump({
@@ -261,7 +263,12 @@ class PisaRetrieve(pt.transformer.TransformerBase):
     if self.verbose:
       inp = pt.tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
     with tempfile.TemporaryDirectory() as d:
-      qids, docnos, ranks, scores = _pisathon.retrieve(
+      shape = (len(queries) * self.num_results,)
+      result_qids = np.empty(shape, dtype=object)
+      result_docnos = np.empty(shape, dtype=object)
+      result_ranks = np.empty(shape, dtype=np.int32)
+      result_scores = np.empty(shape, dtype=np.float32)
+      size = _pisathon.retrieve(
         self.index.path,
         self.index.index_encoding.value,
         self.query_algorithm.value,
@@ -271,10 +278,18 @@ class PisaRetrieve(pt.transformer.TransformerBase):
         k=self.num_results,
         threads=self.threads,
         stop_fname=self._stops_fname(d),
+        result_qids=result_qids,
+        result_docnos=result_docnos,
+        result_ranks=result_ranks,
+        result_scores=result_scores,
         **self.retr_args)
-    idxs = np.vectorize(mapping.__getitem__, otypes=[np.int32])(qids)
-    df = {'qid': qids, 'docno': docnos, 'rank': ranks, 'score': scores}
-    df.update({c: queries[c].iloc[idxs] for c in queries.columns if c != 'qid'})
+    result_qids = result_qids[:size]
+    result_docnos = result_docnos[:size]
+    result_ranks = result_ranks[:size]
+    result_scores = result_scores[:size]
+    idxs = np.vectorize(mapping.__getitem__, otypes=[np.int32])(result_qids)
+    df = {'qid': result_qids, 'docno': result_docnos, 'rank': result_ranks, 'score': result_scores}
+    df.update({c: queries[c].iloc[idxs].reset_index(drop=True) for c in queries.columns if c != 'qid'})
     return pd.DataFrame(df)
 
   def __repr__(self):
