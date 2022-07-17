@@ -267,6 +267,26 @@ static PyObject *py_build_binlex(PyObject *self, PyObject *args, PyObject *kwarg
   Py_RETURN_NONE;
 }
 
+static PyObject *py_build_binlex(PyObject *self, PyObject *args, PyObject *kwargs) {
+  const char* term_file;
+  const char* termlex_file;
+
+  /* Parse arguments */
+  if(!PyArg_ParseTuple(args, "ss", &term_file, &termlex_file)) {
+      return NULL;
+  }
+
+  std::string s_term_file(term_file);
+  std::string s_termlex_file(termlex_file);
+
+  std::ifstream is(s_term_file);
+  encode_payload_vector(std::istream_iterator<io::Line>(is), std::istream_iterator<io::Line>()).to_file(s_termlex_file);
+
+  Py_RETURN_NONE;
+}
+
+
+
 
 template <typename IndexType, typename WandType, typename ScorerFn>
 static std::function<std::vector<std::pair<float, uint64_t>>(Query)> get_query_processor(IndexType* index, WandType* wdata, const char* algorithm, unsigned int k, ScorerFn const& scorer) {
