@@ -258,6 +258,9 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
     if self.built():
       return _pisathon.num_docs(self.path)
 
+  def __len__(self):
+    return self.num_docs()
+
   def __repr__(self):
     return f'PisaIndex({repr(self.path)})'
 
@@ -453,7 +456,7 @@ def main_retrieve(args):
     for r in res.itertuples(index=False):
       sys.stdout.write(f'{r.qid} 0 {r.docno} {r.rank} {r.score:.4f} pt_pisa\n')
 
-class DictTokeniser(pt.transformer.TransformerBase):
+class DictTokeniser(pt.Transformer):
   def __init__(self, field='text', stemmer=None):
     super().__init__()
     self.field = field
