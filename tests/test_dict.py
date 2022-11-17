@@ -25,7 +25,7 @@ class DictTest(TempDirTestCase):
       idx_pipe.index(dataset.get_corpus_iter())
       self.assertTrue(idx.built())
       self.assertEqual(len(idx), 11429)
-      MAPS=[0.300]
+      MAPS=[0.230109]
       TRANS=[idx.bm25()]
       exp_df = pt.Experiment(
           TRANS,
