@@ -21,8 +21,8 @@ class DictTest(TempDirTestCase):
       nltk.download('punkt')
       dataset = pt.get_dataset('irds:vaswani')
       idx = PisaIndex(self.test_dir+'/index', text_field='text_dict', pretokenised=True, stemmer='none')
-      idx = DictTokeniser() >> idx
-      idx.index(dataset.get_corpus_iter())
+      idx_pipe = DictTokeniser() >> idx
+      idx_pipe.index(dataset.get_corpus_iter())
       self.assertTrue(idx.built())
       self.assertEqual(len(idx), 11429)
       MAPS=[0.300]
