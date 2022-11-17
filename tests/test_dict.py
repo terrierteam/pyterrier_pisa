@@ -17,7 +17,9 @@ class DictTest(TempDirTestCase):
 
     def test_vaswani(self):
       from pyterrier_pisa import PisaIndex, DictTokeniser
-      dataset = pt.get_dataset('irds:msmarco-passage')
+      import nltk
+      nltk.download('punkt')
+      dataset = pt.get_dataset('irds:vaswani')
       idx = PisaIndex(self.test_dir+'/index', text_field='text_dict', pretokenised=True, stemmer='none')
       idx = DictTokeniser() >> idx
       idx.index(dataset.get_corpus_iter())
