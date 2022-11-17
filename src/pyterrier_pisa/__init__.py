@@ -124,7 +124,7 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
     if stemmer is None: stemmer = PISA_INDEX_DEFAULTS['stemmer']
     if index_encoding is None: index_encoding = PISA_INDEX_DEFAULTS['index_encoding']
     if stops is None: stops = PISA_INDEX_DEFAULTS['stops']
-    if pretokenised is None: stops = PISA_INDEX_DEFAULTS['pretokenised']
+    if pretokenised is None: pretokenised = PISA_INDEX_DEFAULTS['pretokenised']
     self.text_field = text_field
     self.stemmer = stemmer
     self.index_encoding = index_encoding
