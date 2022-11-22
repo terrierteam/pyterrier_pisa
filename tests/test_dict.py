@@ -27,6 +27,7 @@ class DictTest(TempDirTestCase):
       self.assertEqual(len(idx), 11429)
       MAPS=[0.230109]
       TRANS=[idx.bm25()]
+      TRANS[0].pretokenised = False
       exp_df = pt.Experiment(
           TRANS,
           *dataset.get_topicsqrels(),
@@ -45,7 +46,7 @@ class DictTest(TempDirTestCase):
         self.assertTrue(idx.built())
         bm25=idx.bm25()
         bm25.pretokenised = True
-        df_query = pd.DataFrame(['q1', {'a' : 2}], columns=['qid', 'query_toks'])
+        df_query = pd.DataFrame([['q1', {'a' : 2}]], columns=['qid', 'query_toks'])
         res = bm25.transform(df_query)
         #import pdb; pdb.set_trace()
         #pass
