@@ -381,9 +381,9 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   int isPretok = 0;
 
   /* Parse arguments */
-  static const char *kwlist[] = {"index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "pretokenised", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sssssO|KIffffIsI", const_cast<char **>(kwlist),//TODO update parse
-                                     &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &in_queries, &pretoks, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &k, &stop_fname, &threads))
+  static const char *kwlist[] = {"index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", "pretokenised", NULL};
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sssssO|KIffffIsIi", const_cast<char **>(kwlist),//TODO update parse
+                                     &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &in_queries, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &k, &stop_fname, &threads, &pretoks))
   {
       return NULL;
   }
