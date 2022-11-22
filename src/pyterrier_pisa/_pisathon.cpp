@@ -368,6 +368,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   const char* stemmer;
   const char* scorer_name;
   const char* stop_fname = "";
+  const bool pretoks = false;
   PyObject* in_queries;
   unsigned long long block_size = 1000;
   unsigned int in_quantize = 0;
@@ -380,9 +381,9 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   int isPretok = 0;
 
   /* Parse arguments */
-  static const char *kwlist[] = {"index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", "isPretok", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sssssO|KIffffIsIi", const_cast<char **>(kwlist),
-                                     &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &in_queries, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &k, &stop_fname, &threads, &isPretok))
+  static const char *kwlist[] = {"index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "pretokenised", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", NULL};
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sssssO|KIffffIsI", const_cast<char **>(kwlist),//TODO update parse
+                                     &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &in_queries, &pretoks, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &k, &stop_fname, &threads))
   {
       return NULL;
   }
@@ -473,27 +474,48 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
           if (res == NULL) {
             break;
           }
-          PyArg_ParseTuple(res, "ss", &qid, &qtext);
+          Query query = NULL;
           std::vector<term_id_type> parsed_query;
-          if (isPretok == 0) {
-            TermTokenizer tok(qtext);
-            for (auto term_iter = tok.begin(); term_iter != tok.end(); ++term_iter) {
+          if (pretoks) {
+            PyObject* qtermsdict;
+            // tuple of string and dictiorary, where each entry contains a term and float weight
+            PyArg_ParseTuple(res, "so", &qid, &qtermsdict);
+            PyObject *termKey, *weightValue;
+            Py_ssize_t pos = 0
+            std::vector<float> weights;
+            while (PyDict_Next(qtermsdict, &pos, &termKey, &weightValue)) {
+              // term
+              const char* term_string = PyUnicode_AsUTF8(termKey);
+              if (term_string == NULL && PyErr_Occurred()) {
+                PyErr_SetString(PyExc_TypeError, "token string could not be parsed");
+                return NULL;
+              }
+              //we assume that stemming and stopwords are disabled here
+              //and hence term_processor is a basic one.
+              auto term = term_processor(term_string); 
+              parsed_query.push_back(*term);
+              // weight
+              double weight = PyFloat_AS_DOUBLE(weightValue);
+              if (weight == -1.0 && PyErr_Occurred()) {
+                PyErr_SetString(PyExc_TypeError, "tok weights must be double");
+                return NULL;
+              }
+              weights.push_back(weight);
+            }
+            query = {std::move(qid), std::move(parsed_query), std::move(weights)};
+
+          } else {
+            PyArg_ParseTuple(res, "ss", &qid, &qtext);
+            TermTokenizer tokenizer(qtext);
+            for (auto term_iter = tokenizer.begin(); term_iter != tokenizer.end(); ++term_iter) {
               auto raw_term = *term_iter;
               auto term = term_processor(raw_term);
               if (term && !term_processor.is_stopword(*term)) parsed_query.push_back(*term);
             }
-          } else {
-            boost::char_separator<char> sep{" \n\t\r"};
-            std::string sqtext(qtext);
-            boost::tokenizer<boost::char_separator<char>> tok(sqtext, sep);
-            for (auto term_iter = tok.begin(); term_iter != tok.end(); ++term_iter) {
-              std::string raw_term(*term_iter);
-              auto term = term_processor(raw_term);
-              if (term && !term_processor.is_stopword(*term)) parsed_query.push_back(*term);
-            }
+            query = {std::move(qid), std::move(parsed_query), {}};
           }
-          Query query = {std::move(qid), std::move(parsed_query), {}};
           Py_DECREF(res);
+
           mutex.unlock();
           auto query_res = query_fun(query);
           mutex.lock();
