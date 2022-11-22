@@ -474,14 +474,14 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
           if (res == NULL) {
             break;
           }
-          Query query = NULL;
+          Query query;
           std::vector<term_id_type> parsed_query;
           if (pretoks) {
             PyObject* qtermsdict;
             // tuple of string and dictiorary, where each entry contains a term and float weight
             PyArg_ParseTuple(res, "so", &qid, &qtermsdict);
             PyObject *termKey, *weightValue;
-            Py_ssize_t pos = 0
+            Py_ssize_t pos = 0;
             std::vector<float> weights;
             while (PyDict_Next(qtermsdict, &pos, &termKey, &weightValue)) {
               // term
