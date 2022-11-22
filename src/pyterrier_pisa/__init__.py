@@ -322,7 +322,7 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
       idx = end
 
 class PisaRetrieve(pt.transformer.TransformerBase):
-  def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, **retr_args):
+  def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, pretokenised=True, verbose=False, stops=None, query_algorithm=None, **retr_args):
     if isinstance(index, PisaIndex):
       self.index = index
     else:
@@ -333,6 +333,7 @@ class PisaRetrieve(pt.transformer.TransformerBase):
     self.retr_args = retr_args
     self.verbose = verbose
     self.threads = threads or self.index.threads
+    self.pretokenised = pretokenised
     if stops is None:
       stpps = self.index.stops
     self.stops = PisaStopwords(stops)
@@ -346,7 +347,10 @@ class PisaRetrieve(pt.transformer.TransformerBase):
     mapping = {}
     for i, q in enumerate(queries.itertuples(index=False)):
       qid = str(q.qid)
-      inp.append((qid, q.query))
+      if self.pretokenised:
+        inp.append((qid, q.query_toks))
+      else:
+        inp.append((qid, q.query))
       if qid in mapping:
         raise ValueError(f'duplicate qids detected (e.g., {repr(qid)})')
       mapping[qid] = i
@@ -363,7 +367,7 @@ class PisaRetrieve(pt.transformer.TransformerBase):
         k=self.num_results,
         threads=self.threads,
         stop_fname=self._stops_fname(d),
-        isPretok=1 if self.index.pretokenised else 0,
+        pretokenised=1 if self.index.pretokenised else 0,
         **self.retr_args)
     idxs = np.vectorize(mapping.__getitem__, otypes=[np.int32])(qids)
     df = {'qid': qids, 'docno': docnos, 'rank': ranks, 'score': scores}

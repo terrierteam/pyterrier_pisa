@@ -37,11 +37,16 @@ class DictTest(TempDirTestCase):
 
     def test_dict(self):
         from pyterrier_pisa import PisaIndex
+        import pandas as pd
         idx = PisaIndex(self.test_dir+'/index', text_field='text_dict', pretokenised=True, stemmer='none')
         idx.index([
           {'docno' : 'd1', 'text_dict' : {'a' : 1, 'b' : 14}}
         ])
         self.assertTrue(idx.built())
+        bm25=idx.bm25()
+        bm25.pretokenised = True
+        df_query = pd.DataFrame(['q1', {'a' : 2}], columns=['qid', 'query_toks'])
+        res = bm25.transform(df_query)
         #import pdb; pdb.set_trace()
         #pass
 
