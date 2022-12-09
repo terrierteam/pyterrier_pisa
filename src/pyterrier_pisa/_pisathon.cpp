@@ -13,8 +13,8 @@
 #include <parser.hpp>
 #include <query/term_processor.hpp>
 #include <gsl/span>
-//#include <pstl/algorithm>
-//#include <pstl/execution>
+#include <oneapi/dpl/algorithm>
+#include <oneapi/dpl/execution>
 #include <spdlog/spdlog.h>
 #include <tbb/global_control.h>
 #include <tbb/task_group.h>
