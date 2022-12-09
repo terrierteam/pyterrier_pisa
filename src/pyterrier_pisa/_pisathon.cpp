@@ -108,7 +108,7 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, threads + 1);
 
   pisa::Forward_Index_Builder fwd_builder;
-  pisa::InvertParams invert_params;
+  pisa::invert::InvertParams invert_params;
   invert_params.batch_size = batch_size;
   invert_params.num_threads = threads;
   fwd_builder.build(
@@ -128,8 +128,7 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
   pisa::invert::invert_forward_index(
         (f_index_dir/"fwd").string(),
         (f_index_dir/"inv").string(),
-        batch_size,
-        threads,
+        invert_params,
         lex_size);
 
   // TODO: reorder docs for smaller compressed sizes?
@@ -475,7 +474,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
             break;
           }
           PyArg_ParseTuple(res, "ss", &qid, &qtext);
-          TermTokenizer tokenizer(qtext);
+          EnglishTokenizer tokenizer(qtext);
           std::vector<term_id_type> parsed_query;
           for (auto term_iter = tokenizer.begin(); term_iter != tokenizer.end(); ++term_iter) {
             auto raw_term = *term_iter;
