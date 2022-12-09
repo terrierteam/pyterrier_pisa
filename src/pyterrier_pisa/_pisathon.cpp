@@ -17,6 +17,7 @@
 #include <spdlog/spdlog.h>
 #include <tbb/global_control.h>
 #include <tbb/task_group.h>
+#include <tbb/spin_mutex.h>
 
 //#include <app.hpp>
 #include <binary_collection.hpp>
