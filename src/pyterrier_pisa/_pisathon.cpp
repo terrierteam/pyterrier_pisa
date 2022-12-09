@@ -51,6 +51,7 @@
 #include <io.hpp>
 #include <query/algorithm.hpp>
 #include <scorer/scorer.hpp>
+#include <type_alias.hpp>
 #include <util/util.hpp>
 #include <wand_data_compressed.hpp>
 #include <wand_data_raw.hpp>
@@ -261,8 +262,8 @@ static PyObject *py_build_binlex(PyObject *self, PyObject *args, PyObject *kwarg
 
 
 template <typename IndexType, typename WandType, typename ScorerFn>
-static std::function<std::vector<std::pair<float, uint64_t>>(Query)> get_query_processor(IndexType* index, WandType* wdata, const char* algorithm, unsigned int k, ScorerFn const& scorer) {
-  std::function<std::vector<std::pair<float, uint64_t>>(Query)> query_fun = NULL;
+static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_query_processor(IndexType* index, WandType* wdata, const char* algorithm, unsigned int k, ScorerFn const& scorer) {
+  std::function<std::vector<typename topk_queue::entry_type>(Query)> query_fun = NULL;
 
   if (strcmp(algorithm, "wand") == 0) {
     query_fun = [&, index, wdata, k](Query query) {
@@ -415,7 +416,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
 
   auto documents_path = f_index_dir/"fwd.doclex";
 
-  std::function<std::vector<std::pair<float, uint64_t>>(Query)> query_fun = NULL;
+  std::function<std::vector<typename topk_queue::entry_type>(Query)> query_fun = NULL;
   auto wdata_mmap = MemorySource::mapped_file(wand_path.string());
   wand_data<wand_data_raw>* wdata = new wand_data<wand_data_raw>(MemorySource::mapped_file(wand_path.string()));
   auto scorerf = scorer::from_params(scorer, *wdata);
