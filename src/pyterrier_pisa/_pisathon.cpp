@@ -51,6 +51,7 @@
 #include <io.hpp>
 #include <query/algorithm.hpp>
 #include <scorer/scorer.hpp>
+#include <tokenizer.hpp>
 #include <type_alias.hpp>
 #include <util/util.hpp>
 #include <wand_data_compressed.hpp>
@@ -107,14 +108,16 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, threads + 1);
 
   pisa::Forward_Index_Builder fwd_builder;
+  pisa::InvertParams invert_params;
+  invert_params.batch_size = batch_size;
+  invert_params.num_threads = threads;
   fwd_builder.build(
         ifs,
         (f_index_dir/"fwd").string(),
         record_parser("plaintext", ifs),
-        pisa::term_processor_builder(stemmer_inp),
+        pisa::term_transformer_builder(stemmer_inp),
         pisa::parse_plaintext_content,
-        batch_size,
-        threads);
+        invert_params);
 
   ifs.close();
 
