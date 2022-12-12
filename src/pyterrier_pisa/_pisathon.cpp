@@ -13,11 +13,11 @@
 #include <parser.hpp>
 #include <query/term_processor.hpp>
 #include <gsl/span>
-#include <pstl/algorithm>
-#include <pstl/execution>
+#include <algorithm>
 #include <spdlog/spdlog.h>
 #include <tbb/global_control.h>
 #include <tbb/task_group.h>
+#include <tbb/spin_mutex.h>
 
 //#include <app.hpp>
 #include <binary_collection.hpp>
@@ -51,6 +51,8 @@
 #include <io.hpp>
 #include <query/algorithm.hpp>
 #include <scorer/scorer.hpp>
+#include <tokenizer.hpp>
+#include <type_alias.hpp>
 #include <util/util.hpp>
 #include <wand_data_compressed.hpp>
 #include <wand_data_raw.hpp>
@@ -119,8 +121,8 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
         ifs,
         (f_index_dir/"fwd").string(),
         record_parser("plaintext", ifs),
-        pisa::term_processor_builder(stemmer_inp),
-        parser,
+        pisa::term_transformer_builder(stemmer_inp),
+        pisa::parse_plaintext_content,
         batch_size,
         threads);
 
@@ -130,12 +132,14 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
   mio::mmap_source mfile(term_lexicon_file.c_str());
   auto lexicon = pisa::Payload_Vector<>::from(mfile);
   long unsigned int lex_size = lexicon.size();
+  pisa::invert::InvertParams invert_params;
+  invert_params.batch_size = batch_size;
+  invert_params.num_threads = threads;
+  invert_params.term_count = lex_size;
   pisa::invert::invert_forward_index(
         (f_index_dir/"fwd").string(),
         (f_index_dir/"inv").string(),
-        batch_size,
-        threads,
-        lex_size);
+        invert_params);
 
   Py_END_ALLOW_THREADS
   Py_RETURN_NONE;
@@ -271,8 +275,8 @@ static PyObject *py_build_binlex(PyObject *self, PyObject *args, PyObject *kwarg
 
 
 template <typename IndexType, typename WandType, typename ScorerFn>
-static std::function<std::vector<std::pair<float, uint64_t>>(Query)> get_query_processor(IndexType* index, WandType* wdata, const char* algorithm, unsigned int k, ScorerFn const& scorer) {
-  std::function<std::vector<std::pair<float, uint64_t>>(Query)> query_fun = NULL;
+static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_query_processor(IndexType* index, WandType* wdata, const char* algorithm, unsigned int k, ScorerFn const& scorer) {
+  std::function<std::vector<typename topk_queue::entry_type>(Query)> query_fun = NULL;
 
   if (strcmp(algorithm, "wand") == 0) {
     query_fun = [&, index, wdata, k](Query query) {
@@ -427,7 +431,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
 
   auto documents_path = f_index_dir/"fwd.doclex";
 
-  std::function<std::vector<std::pair<float, uint64_t>>(Query)> query_fun = NULL;
+  std::function<std::vector<typename topk_queue::entry_type>(Query)> query_fun = NULL;
   auto wdata_mmap = MemorySource::mapped_file(wand_path.string());
   wand_data<wand_data_raw>* wdata = new wand_data<wand_data_raw>(MemorySource::mapped_file(wand_path.string()));
   auto scorerf = scorer::from_params(scorer, *wdata);
@@ -506,8 +510,9 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
 
           } else {
             PyArg_ParseTuple(res, "ss", &qid, &qtext);
-            TermTokenizer tokenizer(qtext);
-            for (auto term_iter = tokenizer.begin(); term_iter != tokenizer.end(); ++term_iter) {
+            auto tokenstream = EnglishTokenizer().tokenize(qtext);
+            std::vector<term_id_type> parsed_query;
+            for (auto term_iter = tokenstream->begin(); term_iter != tokenstream->end(); ++term_iter) {
               auto raw_term = *term_iter;
               auto term = term_processor(raw_term);
               if (term && !term_processor.is_stopword(*term)) parsed_query.push_back(*term);

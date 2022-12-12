@@ -94,7 +94,7 @@ def log_level(on=True):
   _pisathon.log_level(1 if on else 0)
 
 
-class PisaIndex(pt.transformer.IterDictIndexerBase):
+class PisaIndex(pt.Indexer):
   def __init__(self,
       path: str,
       text_field: str = None,
@@ -321,7 +321,7 @@ class PisaIndex(pt.transformer.IterDictIndexerBase):
       yield {'docno': did.strip(), field: dict(Counter(lexicon[i] for i in m[start:end]))}
       idx = end
 
-class PisaRetrieve(pt.transformer.TransformerBase):
+class PisaRetrieve(pt.Transformer):
   def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, pretokenised=True, verbose=False, stops=None, query_algorithm=None, **retr_args):
     if isinstance(index, PisaIndex):
       self.index = index
