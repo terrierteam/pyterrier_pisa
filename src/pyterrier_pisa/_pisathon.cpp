@@ -475,9 +475,9 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
             break;
           }
           PyArg_ParseTuple(res, "ss", &qid, &qtext);
-          auto tokenstream = * EnglishTokenizer().tokenize(qtext);
+          auto tokenstream = EnglishTokenizer().tokenize(qtext);
           std::vector<term_id_type> parsed_query;
-          for (auto term_iter = tokenstream.begin(); term_iter != tokenstream.end(); ++term_iter) {
+          for (auto term_iter = tokenstream->begin(); term_iter != tokenstream->end(); ++term_iter) {
             auto raw_term = *term_iter;
             auto term = term_processor(raw_term);
             if (term && !term_processor.is_stopword(*term)) parsed_query.push_back(*term);
