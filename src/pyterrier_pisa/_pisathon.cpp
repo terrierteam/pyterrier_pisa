@@ -492,7 +492,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
               const char* term_string = PyUnicode_AsUTF8(termKey);
               if (term_string == NULL && PyErr_Occurred()) {
                 PyErr_SetString(PyExc_TypeError, "token string could not be parsed");
-                return NULL;
+                break;
               }
               //we assume that stemming and stopwords are disabled here
               //and hence term_processor is a basic one.
@@ -502,7 +502,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
               double weight = PyFloat_AS_DOUBLE(weightValue);
               if (weight == -1.0 && PyErr_Occurred()) {
                 PyErr_SetString(PyExc_TypeError, "tok weights must be double");
-                return NULL;
+                break;
               }
               weights.push_back(weight);
             }
