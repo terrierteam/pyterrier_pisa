@@ -76,15 +76,15 @@ namespace fs = boost::filesystem;
 
 
 
-void parse_pretok(std::string&& content, std::function<void(std::string&&)> process)
-{
-    boost::char_separator<char> sep{" \n\t\r"};
-    boost::tokenizer<boost::char_separator<char>> tok(content, sep);
-    //std::for_each(tok.begin(), tok.end(), process);
-    for (auto term_iter = tok.begin(); term_iter != tok.end(); ++term_iter) {
-        process(std::string(*term_iter));
-    }
-}
+// void parse_pretok(std::string&& content, std::function<void(std::string&&)> process)
+// {
+//     boost::char_separator<char> sep{" \n\t\r"};
+//     boost::tokenizer<boost::char_separator<char>> tok(content, sep);
+//     //std::for_each(tok.begin(), tok.end(), process);
+//     for (auto term_iter = tok->begin(); term_iter != tok->end(); ++term_iter) {
+//         process(std::string(*term_iter));
+//     }
+// }
 
 
 
@@ -114,7 +114,7 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
   }
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, threads + 1);
 
-  auto parser = isPretok == 1 ? parse_pretok : pisa::parse_plaintext_content;
+  //auto parser = isPretok == 1 ? parse_pretok : pisa::parse_plaintext_content;
 
   pisa::Forward_Index_Builder fwd_builder;
   fwd_builder.build(
