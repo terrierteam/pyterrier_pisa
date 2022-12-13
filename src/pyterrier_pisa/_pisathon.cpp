@@ -382,7 +382,6 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   float pl2_c = -100;
   float qld_mu = -100;
   unsigned int threads = 8;
-  int isPretok = 0;
 
   /* Parse arguments */
   static const char *kwlist[] = {"index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", "pretokenised", NULL};
@@ -483,7 +482,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
           if (pretoks) {
             PyObject* qtermsdict;
             // tuple of string and dictiorary, where each entry contains a term and float weight
-            PyArg_ParseTuple(res, "so", &qid, &qtermsdict);
+            PyArg_ParseTuple(res, "sO", &qid, &qtermsdict);
             PyObject *termKey, *weightValue;
             Py_ssize_t pos = 0;
             std::vector<float> weights;
