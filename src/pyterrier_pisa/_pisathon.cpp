@@ -372,7 +372,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   const char* stemmer;
   const char* scorer_name;
   const char* stop_fname = "";
-  const bool pretoks = false;
+  int pretoks = 0;
   PyObject* in_queries;
   unsigned long long block_size = 1000;
   unsigned int in_quantize = 0;
