@@ -26,7 +26,7 @@ class DictTest(TempDirTestCase):
       self.assertTrue(idx.built())
       self.assertEqual(len(idx), 11429)
       MAPS=[0.230109]
-      TRANS=[DictTokeniser('query') >> pt.apply.rename({'query_toks' : 'query_dict'}) >> idx.bm25()]
+      TRANS=[DictTokeniser('query') >> pt.apply.rename({'query_dict' : 'query_toks'}) >> idx.bm25()]
       TRANS[0].pretokenised = False
       exp_df = pt.Experiment(
           TRANS,
