@@ -361,7 +361,7 @@ class PisaRetrieve(pt.Transformer):
         if isinstance(one_value, int):
           # automatically cast floats to ints
           toks_dict = {k : float(v) for k,v in toks_dict.items()}
-        if not isinstance(one_value, float):
+        elif not isinstance(one_value, float):
           raise TypeError(
             "query_toks column should be a dictionary (qid %s) with floats for values, found %s (type %s)" 
             % (qid, str(one_value), str(type(one_value)) ))
