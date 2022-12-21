@@ -348,8 +348,20 @@ class PisaRetrieve(pt.Transformer):
     for i, q in enumerate(queries.itertuples(index=False)):
       qid = str(q.qid)
       if self.pretokenised:
+
+        # type checking for pretokenized, prevent segfaults in native
         if not isinstance(q.query_toks, dict):
           raise TypeError("query_toks column should be a dictionary (qid %s)" % qid)
+        one_key, one_value = next(iter(q.query_toks.items()))
+        if not isinstance(one_key, str):
+          raise TypeError(
+            "query_toks column should be a dictionary (qid %s) with strings for keys, found %s (type %s)" 
+            % (qid, str(one_key), str(type(one_key)) ))
+        if not isinstance(one_value, float):
+          raise TypeError(
+            "query_toks column should be a dictionary (qid %s) with floats for values, found %s (type %s)" 
+            % (qid, str(one_value), str(type(one_value)) ))
+        
         inp.append((qid, q.query_toks))
       else:
         inp.append((qid, q.query))
