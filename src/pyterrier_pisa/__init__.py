@@ -350,19 +350,23 @@ class PisaRetrieve(pt.Transformer):
       if self.pretokenised:
 
         # type checking for pretokenized, prevent segfaults in native
-        if not isinstance(q.query_toks, dict):
+        toks_dict = q.query_toks
+        if not isinstance(toks_dict, dict):
           raise TypeError("query_toks column should be a dictionary (qid %s)" % qid)
-        one_key, one_value = next(iter(q.query_toks.items()))
+        one_key, one_value = next(iter(toks_dict.items()))
         if not isinstance(one_key, str):
           raise TypeError(
             "query_toks column should be a dictionary (qid %s) with strings for keys, found %s (type %s)" 
             % (qid, str(one_key), str(type(one_key)) ))
+        if isinstance(one_value, int):
+          # automatically cast floats to ints
+          toks_dict = {k : float(v) for k,v in toks_dict.items()}
         if not isinstance(one_value, float):
           raise TypeError(
             "query_toks column should be a dictionary (qid %s) with floats for values, found %s (type %s)" 
             % (qid, str(one_value), str(type(one_value)) ))
         
-        inp.append((qid, q.query_toks))
+        inp.append((qid, toks_dict))
       else:
         inp.append((qid, q.query))
       if qid in mapping:
