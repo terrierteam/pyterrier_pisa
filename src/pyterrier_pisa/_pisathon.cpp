@@ -64,15 +64,15 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
-#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include <numpy/arrayobject.h>
-
 using pisa::Document_Record;
 using pisa::Forward_Index_Builder;
 using ranges::views::enumerate;
 using namespace pisa;
 namespace fs = boost::filesystem;
 
+
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
 
 
 
@@ -94,10 +94,9 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
   const char* stemmer;
   int batch_size;
   int threads;
-  int isPretok;
 
   /* Parse arguments */
-  if(!PyArg_ParseTuple(args, "sssiii", &fin, &index_dir, &stemmer, &batch_size, &threads, &isPretok)) {
+  if(!PyArg_ParseTuple(args, "sssii", &fin, &index_dir, &stemmer, &batch_size, &threads)) {
       return NULL;
   }
 
@@ -113,8 +112,6 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
     stemmer_inp = stemmer;
   }
   tbb::global_control control(tbb::global_control::max_allowed_parallelism, threads + 1);
-
-  //auto parser = isPretok == 1 ? parse_pretok : pisa::parse_plaintext_content;
 
   pisa::Forward_Index_Builder fwd_builder;
   fwd_builder.build(
