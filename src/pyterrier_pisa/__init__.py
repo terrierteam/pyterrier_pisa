@@ -86,7 +86,6 @@ PISA_INDEX_DEFAULTS = {
   'index_encoding': PisaIndexEncoding.block_simdbp,
   'query_algorithm': PisaQueryAlgorithm.block_max_wand,
   'stops': PisaStopwords.terrier,
-  'pretokenised': False,
 }
 
 
@@ -103,8 +102,7 @@ class PisaIndex(pt.Indexer):
       batch_size: int = 100_000,
       stops: Optional[Union[PisaStopwords, List[str]]] = None,
       threads: int = 8,
-      overwrite=False,
-      pretokenised: int = None):
+      overwrite=False):
     self.path = path
     ppath = Path(path)
     if stemmer is not None: stemmer = PisaStemmer(stemmer)
@@ -117,14 +115,9 @@ class PisaIndex(pt.Indexer):
         stemmer = PisaStemmer(config['stemmer'])
       if stemmer.value != config['stemmer']:
         warn(f'requested stemmer={stemmer.value}, but index was constructed with {config["stemmer"]}')
-      if pretokenised is None:
-        pretokenised = config.get('pretokenised', PISA_INDEX_DEFAULTS['pretokenised'])
-      if pretokenised != config.get('pretokenised', PISA_INDEX_DEFAULTS['pretokenised']):
-        warn(f"requested pretokenised={pretokenised}, but index was constructed with pretokenised={config.get('pretokenised', PISA_INDEX_DEFAULTS['pretokenised'])}")
     if stemmer is None: stemmer = PISA_INDEX_DEFAULTS['stemmer']
     if index_encoding is None: index_encoding = PISA_INDEX_DEFAULTS['index_encoding']
     if stops is None: stops = PISA_INDEX_DEFAULTS['stops']
-    if pretokenised is None: pretokenised = PISA_INDEX_DEFAULTS['pretokenised']
     self.text_field = text_field
     self.stemmer = stemmer
     self.index_encoding = index_encoding
@@ -132,7 +125,6 @@ class PisaIndex(pt.Indexer):
     self.threads = threads
     self.overwrite = overwrite
     self.stops = stops
-    self.pretokenised = pretokenised
 
   def transform(self, *args, **kwargs):
     raise RuntimeError(f'You cannot use {self} itself as a transformer. Did you mean to call a ranking function like .bm25()?')
@@ -160,7 +152,7 @@ class PisaIndex(pt.Indexer):
         fifo = os.path.join(d, 'fifo')
         os.mkfifo(fifo)
         threading.Thread(target=self._write_fifo, args=(it, fifo), daemon=True).start()
-        _pisathon.index(fifo, self.path, '' if self.stemmer == PisaStemmer.none else self.stemmer.value, self.batch_size, self.threads, 1 if self.pretokenised else 0)
+        _pisathon.index(fifo, self.path, '' if self.stemmer == PisaStemmer.none else self.stemmer.value, self.batch_size, self.threads)
     with open(ppath/'pt_pisa_config.json', 'wt') as fout:
       json.dump({
         'stemmer': self.stemmer.value,
@@ -239,19 +231,19 @@ class PisaIndex(pt.Indexer):
     _pisathon.build_binlex(str(path/'fwd.terms'), str(path/'fwd.termlex'))
 
   def bm25(self, k1=0.9, b=0.4, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
-    return PisaRetrieve(self, scorer=PisaScorer.bm25, bm25_k1=k1, bm25_b=b, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised, query_weighted=query_weighted)
+    return PisaRetrieve(self, scorer=PisaScorer.bm25, bm25_k1=k1, bm25_b=b, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
 
   def dph(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
-    return PisaRetrieve(self, scorer=PisaScorer.dph, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised, query_weighted=query_weighted)
+    return PisaRetrieve(self, scorer=PisaScorer.dph, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
 
   def pl2(self, c=1., num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
-    return PisaRetrieve(self, scorer=PisaScorer.pl2, pl2_c=c, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised, query_weighted=query_weighted)
+    return PisaRetrieve(self, scorer=PisaScorer.pl2, pl2_c=c, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
 
   def qld(self, mu=1000., num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
-    return PisaRetrieve(self, scorer=PisaScorer.qld, qld_mu=mu, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised, query_weighted=query_weighted)
+    return PisaRetrieve(self, scorer=PisaScorer.qld, qld_mu=mu, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
 
   def quantized(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
-    return PisaRetrieve(self, scorer=PisaScorer.quantized, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised, query_weighted=query_weighted)
+    return PisaRetrieve(self, scorer=PisaScorer.quantized, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
 
   def num_terms(self):
     if self.built():
@@ -308,7 +300,7 @@ class PisaIndex(pt.Indexer):
     import pyciff
     pyciff.pisa_to_ciff(str(Path(self.path)/'inv'), str(Path(self.path)/'fwd.terms'), str(Path(self.path)/'fwd.documents'), ciff_file, description)
 
-  def get_corpus_iter(self, field='text_dict', verbose=True):
+  def get_corpus_iter(self, field='text_toks', verbose=True):
     assert self.built()
     ppath = Path(self.path)
     assert (ppath/'fwd').exists(), "get_corpus_iter requires a fwd index"
@@ -325,7 +317,7 @@ class PisaIndex(pt.Indexer):
       idx = end
 
 class PisaRetrieve(pt.Transformer):
-  def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, pretokenised=True, verbose=False, stops=None, query_algorithm=None, query_weighted=None, **retr_args):
+  def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, query_weighted=None, **retr_args):
     if isinstance(index, PisaIndex):
       self.index = index
     else:
@@ -336,7 +328,6 @@ class PisaRetrieve(pt.Transformer):
     self.retr_args = retr_args
     self.verbose = verbose
     self.threads = threads or self.index.threads
-    self.pretokenised = pretokenised
     if stops is None:
       stpps = self.index.stops
     self.stops = PisaStopwords(stops)
@@ -350,35 +341,30 @@ class PisaRetrieve(pt.Transformer):
     _pisathon.prepare_index(self.index.path, encoding=self.index.index_encoding.value, scorer_name=self.scorer.value, **retr_args)
 
   def transform(self, queries):
+    assert 'qid' in queries.columns
+    assert 'query' in queries.columns or 'query_toks' in queries.columns
     inp = []
     mapping = {}
-    for i, q in enumerate(queries.itertuples(index=False)):
-      qid = str(q.qid)
-      if self.pretokenised:
-
-        # type checking for pretokenized, prevent segfaults in native
-        toks_dict = q.query_toks
+    if 'query_toks' in queries.columns:
+      pretok = True
+      for i, q in enumerate(queries.itertuples(index=False)):
+        qid, toks_dict = q.qid, q.query_toks
         if not isinstance(toks_dict, dict):
           raise TypeError("query_toks column should be a dictionary (qid %s)" % qid)
-        one_key, one_value = next(iter(toks_dict.items()))
-        if not isinstance(one_key, str):
-          raise TypeError(
-            "query_toks column should be a dictionary (qid %s) with strings for keys, found %s (type %s)" 
-            % (qid, str(one_key), str(type(one_key)) ))
-        if isinstance(one_value, int):
-          # automatically cast floats to ints
-          toks_dict = {k : float(v) for k,v in toks_dict.items()}
-        elif not isinstance(one_value, float):
-          raise TypeError(
-            "query_toks column should be a dictionary (qid %s) with floats for values, found %s (type %s)" 
-            % (qid, str(one_value), str(type(one_value)) ))
-        
+        toks_dict = {str(k): float(v) for k, v in toks_dict.items()} # force keys and str, vals as float
         inp.append((qid, toks_dict))
-      else:
+        if qid in mapping:
+          raise ValueError(f'duplicate qid detected: {repr(qid)}')
+        mapping[qid] = i
+    else:
+      pretok = False
+      for i, q in enumerate(queries.itertuples(index=False)):
+        qid = q.qid
         inp.append((qid, q.query))
-      if qid in mapping:
-        raise ValueError(f'duplicate qids detected (e.g., {repr(qid)})')
-      mapping[qid] = i
+        if qid in mapping:
+          raise ValueError(f'duplicate qid detected: {repr(qid)}')
+        mapping[qid] = i
+
     if self.verbose:
       inp = pt.tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
     with tempfile.TemporaryDirectory() as d:
@@ -393,7 +379,7 @@ class PisaRetrieve(pt.Transformer):
         threads=self.threads,
         stop_fname=self._stops_fname(d),
         query_weighted=1 if self.query_weighted else 0,
-        pretokenised=1 if self.index.pretokenised else 0,
+        pretokenised=pretok,
         **self.retr_args)
     idxs = np.vectorize(mapping.__getitem__, otypes=[np.int32])(qids)
     df = {'qid': qids, 'docno': docnos, 'rank': ranks, 'score': scores}
