@@ -38,7 +38,7 @@ class PisaScorer(Enum):
   dph = 'dph'
   pl2 = 'pl2'
   qld = 'qld'
-
+  quantized = 'quantized'
 
 class PisaIndexEncoding(Enum):
   """
@@ -238,17 +238,20 @@ class PisaIndex(pt.Indexer):
     _pisathon.build_binlex(str(path/'fwd.documents'), str(path/'fwd.doclex'))
     _pisathon.build_binlex(str(path/'fwd.terms'), str(path/'fwd.termlex'))
 
-  def bm25(self, k1=0.9, b=0.4, num_results=1000, verbose=False, threads=None, query_algorithm=None):
-    return PisaRetrieve(self, scorer=PisaScorer.bm25, bm25_k1=k1, bm25_b=b, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised)
+  def bm25(self, k1=0.9, b=0.4, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
+    return PisaRetrieve(self, scorer=PisaScorer.bm25, bm25_k1=k1, bm25_b=b, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised, query_weighted=query_weighted)
 
-  def dph(self, num_results=1000, verbose=False, threads=None, query_algorithm=None):
-    return PisaRetrieve(self, scorer=PisaScorer.dph, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised)
+  def dph(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
+    return PisaRetrieve(self, scorer=PisaScorer.dph, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised, query_weighted=query_weighted)
 
-  def pl2(self, c=1., num_results=1000, verbose=False, threads=None, query_algorithm=None):
-    return PisaRetrieve(self, scorer=PisaScorer.pl2, pl2_c=c, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised)
+  def pl2(self, c=1., num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
+    return PisaRetrieve(self, scorer=PisaScorer.pl2, pl2_c=c, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised, query_weighted=query_weighted)
 
-  def qld(self, mu=1000., num_results=1000, verbose=False, threads=None, query_algorithm=None):
-    return PisaRetrieve(self, scorer=PisaScorer.qld, qld_mu=mu, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised)
+  def qld(self, mu=1000., num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
+    return PisaRetrieve(self, scorer=PisaScorer.qld, qld_mu=mu, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised, query_weighted=query_weighted)
+
+  def quantized(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
+    return PisaRetrieve(self, scorer=PisaScorer.quantized, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, pretokenised=self.pretokenised, query_weighted=query_weighted)
 
   def num_terms(self):
     if self.built():
@@ -322,7 +325,7 @@ class PisaIndex(pt.Indexer):
       idx = end
 
 class PisaRetrieve(pt.Transformer):
-  def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, pretokenised=True, verbose=False, stops=None, query_algorithm=None, **retr_args):
+  def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, pretokenised=True, verbose=False, stops=None, query_algorithm=None, query_weighted=None, **retr_args):
     if isinstance(index, PisaIndex):
       self.index = index
     else:
@@ -340,6 +343,10 @@ class PisaRetrieve(pt.Transformer):
     if query_algorithm is None:
       query_algorithm = PISA_INDEX_DEFAULTS['query_algorithm']
     self.query_algorithm = PisaQueryAlgorithm(query_algorithm)
+    if query_weighted is None:
+      self.query_weighted = self.scorer == PisaScorer.quantized
+    else:
+      self.query_weighted = query_weighted
     _pisathon.prepare_index(self.index.path, encoding=self.index.index_encoding.value, scorer_name=self.scorer.value, **retr_args)
 
   def transform(self, queries):
@@ -385,6 +392,7 @@ class PisaRetrieve(pt.Transformer):
         k=self.num_results,
         threads=self.threads,
         stop_fname=self._stops_fname(d),
+        query_weighted=1 if self.query_weighted else 0,
         pretokenised=1 if self.index.pretokenised else 0,
         **self.retr_args)
     idxs = np.vectorize(mapping.__getitem__, otypes=[np.int32])(qids)
