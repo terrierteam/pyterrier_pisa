@@ -14,7 +14,6 @@ class DictTest(TempDirTestCase):
   #       idx.index(PisaIndex('/home/sean/data/indices/msmarco-passage.pisa').get_corpus_iter())
   #       import pdb; pdb.set_trace()
   #       pass
-
     def test_vaswani(self):
       from pyterrier_pisa import PisaIndex, DictTokeniser
       import nltk
@@ -25,14 +24,14 @@ class DictTest(TempDirTestCase):
       idx_pipe.index(dataset.get_corpus_iter())
       self.assertTrue(idx.built())
       self.assertEqual(len(idx), 11429)
-      MAPS=[0.225637]
+      MAPS=[0.2256]
       TRANS=[DictTokeniser('query') >> pt.apply.rename({'query_dict' : 'query_toks'}) >> idx.bm25()]
       TRANS[0].pretokenised = False
       exp_df = pt.Experiment(
           TRANS,
           *dataset.get_topicsqrels(),
           ["map"],
-          round=6
+          round=4
       )
       self.assertListEqual(MAPS, exp_df["map"].tolist())
 
@@ -51,9 +50,6 @@ class DictTest(TempDirTestCase):
         self.assertEqual(1, len(res))
         self.assertEqual('d1', res.iloc[0].docno)
         self.assertEqual('q1', res.iloc[0].qid)
-
-        #import pdb; pdb.set_trace()
-        #pass
 
 if __name__ == "__main__":
   import unittest

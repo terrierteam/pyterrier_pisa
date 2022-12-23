@@ -495,15 +495,17 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
               }
               //we assume that stemming and stopwords are disabled here
               //and hence term_processor is a basic one.
-              auto term = term_processor(term_string); 
-              parsed_query.push_back(*term);
-              // weight
-              double weight = PyFloat_AS_DOUBLE(weightValue);
-              if (weight == -1.0 && PyErr_Occurred()) {
-                PyErr_SetString(PyExc_TypeError, "tok weights must be double");
-                break;
+              auto term = term_processor(term_string);
+              if (term) {
+                parsed_query.push_back(*term);
+                // weight
+                double weight = PyFloat_AS_DOUBLE(weightValue);
+                if (weight == -1.0 && PyErr_Occurred()) {
+                  PyErr_SetString(PyExc_TypeError, "tok weights must be double");
+                  break;
+                }
+                weights.push_back(weight);
               }
-              weights.push_back(weight);
             }
             query = {std::move(qid), std::move(parsed_query), std::move(weights)};
 
