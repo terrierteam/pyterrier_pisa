@@ -344,31 +344,26 @@ class PisaRetrieve(pt.Transformer):
     assert 'qid' in queries.columns
     assert 'query' in queries.columns or 'query_toks' in queries.columns
     inp = []
-    mapping = {}
     if 'query_toks' in queries.columns:
       pretok = True
-      for i, q in enumerate(queries.itertuples(index=False)):
-        qid, toks_dict = q.qid, q.query_toks
+      for i, toks_dict in enumerate(queries['query_toks']):
         if not isinstance(toks_dict, dict):
           raise TypeError("query_toks column should be a dictionary (qid %s)" % qid)
         toks_dict = {str(k): float(v) for k, v in toks_dict.items()} # force keys and str, vals as float
-        inp.append((qid, toks_dict))
-        if qid in mapping:
-          raise ValueError(f'duplicate qid detected: {repr(qid)}')
-        mapping[qid] = i
+        inp.append((i, toks_dict))
     else:
       pretok = False
-      for i, q in enumerate(queries.itertuples(index=False)):
-        qid = q.qid
-        inp.append((qid, q.query))
-        if qid in mapping:
-          raise ValueError(f'duplicate qid detected: {repr(qid)}')
-        mapping[qid] = i
+      inp.extend(enumerate(queries['query']))
 
     if self.verbose:
       inp = pt.tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
     with tempfile.TemporaryDirectory() as d:
-      qids, docnos, ranks, scores = _pisathon.retrieve(
+      shape = (len(queries) * self.num_results,)
+      result_qidxs = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
+      result_docnos = np.ascontiguousarray(np.empty(shape, dtype=object))
+      result_ranks = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
+      result_scores = np.ascontiguousarray(np.empty(shape, dtype=np.float32))
+      size = _pisathon.retrieve(
         self.index.path,
         self.index.index_encoding.value,
         self.query_algorithm.value,
@@ -380,11 +375,16 @@ class PisaRetrieve(pt.Transformer):
         stop_fname=self._stops_fname(d),
         query_weighted=1 if self.query_weighted else 0,
         pretokenised=pretok,
+        result_qidxs=result_qidxs,
+        result_docnos=result_docnos,
+        result_ranks=result_ranks,
+        result_scores=result_scores,
         **self.retr_args)
-    idxs = np.vectorize(mapping.__getitem__, otypes=[np.int32])(qids)
-    df = {'qid': qids, 'docno': docnos, 'rank': ranks, 'score': scores}
-    df.update({c: queries[c].iloc[idxs].reset_index(drop=True) for c in queries.columns if c != 'qid'})
-    return pd.DataFrame(df)
+    result = queries.iloc[result_qidxs[:size]].reset_index(drop=True)
+    result['docno'] = result_docnos[:size]
+    result['score'] = result_scores[:size]
+    result['rank'] = result_ranks[:size]
+    return result
 
   def __repr__(self):
     return f'PisaRetrieve({repr(self.index)}, {repr(self.scorer)}, {repr(self.num_results)}, {repr(self.retr_args)}, {repr(self.stops)})'
