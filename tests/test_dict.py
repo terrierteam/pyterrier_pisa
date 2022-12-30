@@ -5,21 +5,12 @@ import itertools
 
 class DictTest(TempDirTestCase):
 
-  # def test_dict(self):
-  #       from pyterrier_pisa import PisaIndex, DictTokeniser
-  #       dataset = pt.get_dataset('irds:msmarco-passage')
-  #       idx = PisaIndex(self.test_dir+'/index', text_field='text_dict', stemmer='none')
-  #       #(DictTokeniser() >> idx).index(itertools.islice(dataset.get_corpus_iter(), 200000))
-  #       #(DictTokeniser() >> idx).index(dataset.get_corpus_iter())
-  #       idx.index(PisaIndex('/home/sean/data/indices/msmarco-passage.pisa').get_corpus_iter())
-  #       import pdb; pdb.set_trace()
-  #       pass
     def test_vaswani(self):
       from pyterrier_pisa import PisaIndex, DictTokeniser
       import nltk
       nltk.download('punkt')
       dataset = pt.get_dataset('irds:vaswani')
-      idx = PisaIndex(self.test_dir+'/index', text_field='text_dict', stemmer='none')
+      idx = PisaIndex(self.test_dir+'/index', text_field='text_dict', stemmer='none', threads=1)
       idx_pipe = DictTokeniser() >> idx
       idx_pipe.index(dataset.get_corpus_iter())
       self.assertTrue(idx.built())
@@ -39,7 +30,7 @@ class DictTest(TempDirTestCase):
       import nltk
       nltk.download('punkt')
       dataset = pt.get_dataset('irds:vaswani')
-      idx = PisaIndex(self.test_dir+'/index', text_field='text_dict', stemmer='none')
+      idx = PisaIndex(self.test_dir+'/index', text_field='text_dict', stemmer='none', threads=1)
       idx_pipe = DictTokeniser() >> idx
       idx_pipe.index(dataset.get_corpus_iter())
       self.assertTrue(idx.built())
@@ -57,7 +48,7 @@ class DictTest(TempDirTestCase):
     def test_dict(self):
         from pyterrier_pisa import PisaIndex
         import pandas as pd
-        idx = PisaIndex(self.test_dir+'/index', text_field='text_dict', stemmer='none')
+        idx = PisaIndex(self.test_dir+'/index', text_field='text_dict', stemmer='none', threads=1)
         idx.index([
           {'docno' : 'd1', 'text_dict' : {'a' : 1, 'b' : 14}}
         ])

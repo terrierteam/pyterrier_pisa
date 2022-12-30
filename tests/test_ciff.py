@@ -8,7 +8,7 @@ class CiffTest(TempDirTestCase):
     def test_to_and_from_ciff(self):
         from pyterrier_pisa import PisaIndex
         dataset = pt.get_dataset("vaswani")
-        idx = PisaIndex(self.test_dir)
+        idx = PisaIndex(self.test_dir, threads=1)
         idx.index(dataset.get_corpus_iter())
         res_before = idx.bm25().search('chemical reactions')
         idx.to_ciff(self.test_dir + '/ciff')
