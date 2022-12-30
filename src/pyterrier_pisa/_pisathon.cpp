@@ -115,7 +115,7 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
   long unsigned int lex_size = lexicon.size();
   pisa::invert::InvertParams invert_params;
   invert_params.batch_size = batch_size;
-  invert_params.num_threads = threads;
+  invert_params.num_threads = threads + 1;
   invert_params.term_count = lex_size;
   pisa::invert::invert_forward_index(
         (f_index_dir/"fwd").string(),
