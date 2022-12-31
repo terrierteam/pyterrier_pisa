@@ -14,6 +14,7 @@ class VaswaniTest(TempDirTestCase):
         for t in TRANS:
             results = t.search("chemical reactions")
             self.assertEqual(52, len(results))
+            print(results)
         exp_df = pt.Experiment(
             TRANS,
             *dataset.get_topicsqrels(),
@@ -22,3 +23,7 @@ class VaswaniTest(TempDirTestCase):
         )
         self.assertListEqual(MAPS, exp_df["map"].tolist())
         
+
+if __name__ == "__main__":
+    import unittest
+    unittest.main()
