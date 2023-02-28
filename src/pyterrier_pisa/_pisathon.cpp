@@ -173,7 +173,7 @@ static PyObject *py_prepare_index(PyObject *self, PyObject *args, PyObject *kwar
   const char* index_dir;
   const char* scorer_name;
   const char* encoding;
-  unsigned long long block_size = 1000;
+  unsigned long long block_size = 64;
   unsigned int in_quantize = 0;
   float bm25_k1 = -100;
   float bm25_b = -100;
@@ -203,6 +203,9 @@ static PyObject *py_prepare_index(PyObject *self, PyObject *args, PyObject *kwar
   else if (scorer.name == "qld") scorer_fmt = fmt::format("{}.mu-{}", scorer.name, scorer.qld_mu);
   else if (scorer.name == "dph") scorer_fmt = scorer.name;
   else if (scorer.name == "quantized") scorer_fmt = scorer.name;
+  else if (scorer.name == "tfidf") scorer_fmt = scorer.name;
+  else if (scorer.name == "tf") scorer_fmt = scorer.name;
+  else if (scorer.name == "bin") scorer_fmt = scorer.name;
   else return NULL;
 
   fs::path f_index_dir (index_dir);
@@ -261,7 +264,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
   std::function<std::vector<typename topk_queue::entry_type>(Query)> query_fun = NULL;
 
   if (strcmp(algorithm, "wand") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       wand_query wand_q(topk);
       wand_q(make_max_scored_cursors(*index, *wdata, *scorer, query, weighted), index->num_docs());
@@ -269,7 +272,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "block_max_wand") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       block_max_wand_query block_max_wand_q(topk);
       block_max_wand_q(
@@ -278,7 +281,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "block_max_maxscore") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       block_max_maxscore_query block_max_maxscore_q(topk);
       block_max_maxscore_q(
@@ -287,7 +290,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "block_max_ranked_and") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       block_max_ranked_and_query block_max_ranked_and_q(topk);
       block_max_ranked_and_q(
@@ -296,7 +299,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "ranked_and") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       ranked_and_query ranked_and_q(topk);
       ranked_and_q(make_scored_cursors(*index, *scorer, query, weighted), index->num_docs());
@@ -304,7 +307,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "ranked_or") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       ranked_or_query ranked_or_q(topk);
       ranked_or_q(make_scored_cursors(*index, *scorer, query, weighted), index->num_docs());
@@ -312,7 +315,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "maxscore") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       maxscore_query maxscore_q(topk);
       maxscore_q(make_max_scored_cursors(*index, *wdata, *scorer, query, weighted), index->num_docs());
@@ -344,7 +347,27 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
   return query_fun;
 }
 
-
+static PyObject *py_tokenize(PyObject *self, PyObject *args, PyObject *kwargs) {
+  const char* index_dir;
+  const char* input;
+  const char* stemmer_inp;
+  static const char *kwlist[] = {"index_dir", "input", "stemmer"};
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sss", const_cast<char **>(kwlist), &index_dir, &input, &stemmer_inp)) {
+    return NULL;
+  }
+  fs::path f_index_dir (index_dir);
+  auto stemmer = pisa::term_transformer_builder(stemmer_inp)();
+  auto tokenstream = EnglishTokenizer().tokenize(input);
+  PyObject *tokens = PyList_New(0);
+  for (auto term_iter = tokenstream->begin(); term_iter != tokenstream->end(); ++term_iter) {
+    auto raw_term = *term_iter;
+    auto term = stemmer(raw_term);
+    auto py_term = PyUnicode_FromString(term.c_str());
+    PyList_Append(tokens, py_term);
+    Py_DECREF(py_term);
+  }
+  return tokens;
+}
 
 
 static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
@@ -356,7 +379,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   const char* stop_fname = "";
   int pretoks = 0;
   PyObject* in_queries;
-  unsigned long long block_size = 1000;
+  unsigned long long block_size = 64;
   unsigned int in_quantize = 0;
   unsigned int in_weighted = 0;
   unsigned int k = 1000;
@@ -412,6 +435,9 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   else if (scorer.name == "qld") scorer_fmt = fmt::format("{}.mu-{}", scorer.name, scorer.qld_mu);
   else if (scorer.name == "dph") scorer_fmt = scorer.name;
   else if (scorer.name == "quantized") scorer_fmt = scorer.name;
+  else if (scorer.name == "tfidf") scorer_fmt = scorer.name;
+  else if (scorer.name == "tf") scorer_fmt = scorer.name;
+  else if (scorer.name == "bin") scorer_fmt = scorer.name;
   else return NULL;
 
   auto wand_path = f_index_dir/fmt::format("{}.q{:d}.bmw.{:d}", scorer_fmt, quantize, block_size);
@@ -423,7 +449,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   auto wdata_mmap = MemorySource::mapped_file(wand_path.string());
   wand_data<wand_data_raw>* wdata = new wand_data<wand_data_raw>(MemorySource::mapped_file(wand_path.string()));
   auto scorerf = scorer::from_params(scorer, *wdata);
-  bool weighted = in_weighted == 1;
+  bool weighted = in_weighted != 0;
 
   void* index = NULL;
 
@@ -592,6 +618,7 @@ static PyMethodDef pisathon_methods[] = {
   {"merge_inv", py_merge_inv, METH_VARARGS, "merge_inv"},
   {"prepare_index", (PyCFunction) py_prepare_index, METH_VARARGS | METH_KEYWORDS, "prepare_index"},
   {"retrieve", (PyCFunction)py_retrieve, METH_VARARGS | METH_KEYWORDS, "retrieve"},
+  {"tokenize", (PyCFunction)py_tokenize, METH_VARARGS | METH_KEYWORDS, "tokenize"},
   {"num_terms", (PyCFunction)py_num_terms, METH_VARARGS, "num_terms"},
   {"num_docs", (PyCFunction)py_num_docs, METH_VARARGS, "num_docs"},
   {"log_level", (PyCFunction)py_log_level, METH_VARARGS, "log_level"},

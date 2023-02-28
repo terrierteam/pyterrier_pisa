@@ -39,6 +39,9 @@ class PisaScorer(Enum):
   pl2 = 'pl2'
   qld = 'qld'
   quantized = 'quantized'
+  tf = 'tf'
+  tfidf = 'tfidf'
+  bin = 'bin'
 
 class PisaIndexEncoding(Enum):
   """
@@ -78,6 +81,7 @@ class PisaStopwords(Enum):
   Represents which set of stopwords to use during retrieval
   """
   terrier = 'terrier'
+  lucene = 'lucene'
   none = 'none'
 
 
@@ -245,6 +249,15 @@ class PisaIndex(pt.Indexer):
   def quantized(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
     return PisaRetrieve(self, scorer=PisaScorer.quantized, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
 
+  def tfidf(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
+    return PisaRetrieve(self, scorer=PisaScorer.tfidf, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
+
+  def tf(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
+    return PisaRetrieve(self, scorer=PisaScorer.tf, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
+
+  def bin(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
+    return PisaRetrieve(self, scorer=PisaScorer.bin, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
+
   def num_terms(self):
     if self.built():
       return _pisathon.num_terms(self.path)
@@ -299,6 +312,9 @@ class PisaIndex(pt.Indexer):
     assert self.built()
     import pyciff
     pyciff.pisa_to_ciff(str(Path(self.path)/'inv'), str(Path(self.path)/'fwd.terms'), str(Path(self.path)/'fwd.documents'), ciff_file, description)
+
+  def tokenize(self, inp):
+    return _pisathon.tokenize(self.path, inp, '' if self.stemmer == PisaStemmer.none else self.stemmer.value)
 
   def get_corpus_iter(self, field='text_toks', verbose=True):
     assert self.built()
@@ -402,6 +418,8 @@ class PisaRetrieve(pt.Transformer):
       stops = self.stops
       if stops == PisaStopwords.terrier:
         stops = _terrier_stops()
+      elif stops == PisaStopwords.lucene:
+        stops = ["a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "if", "in", "into", "is", "it", "no", "not", "of", "on", "or", "such", "that", "the", "their", "then", "there", "these", "they", "this", "to", "was", "will", "with"]
       with open(fifo, 'wt') as fout:
         for stop in stops:
           fout.write(f'{stop}\n')
