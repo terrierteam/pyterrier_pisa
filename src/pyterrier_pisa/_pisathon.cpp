@@ -261,7 +261,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
   std::function<std::vector<typename topk_queue::entry_type>(Query)> query_fun = NULL;
 
   if (strcmp(algorithm, "wand") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       wand_query wand_q(topk);
       wand_q(make_max_scored_cursors(*index, *wdata, *scorer, query, weighted), index->num_docs());
@@ -269,7 +269,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "block_max_wand") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       block_max_wand_query block_max_wand_q(topk);
       block_max_wand_q(
@@ -278,7 +278,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "block_max_maxscore") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       block_max_maxscore_query block_max_maxscore_q(topk);
       block_max_maxscore_q(
@@ -287,7 +287,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "block_max_ranked_and") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       block_max_ranked_and_query block_max_ranked_and_q(topk);
       block_max_ranked_and_q(
@@ -296,7 +296,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "ranked_and") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       ranked_and_query ranked_and_q(topk);
       ranked_and_q(make_scored_cursors(*index, *scorer, query, weighted), index->num_docs());
@@ -304,7 +304,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "ranked_or") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       ranked_or_query ranked_or_q(topk);
       ranked_or_q(make_scored_cursors(*index, *scorer, query, weighted), index->num_docs());
@@ -312,7 +312,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "maxscore") == 0) {
-    query_fun = [&, index, wdata, k](Query query) {
+    query_fun = [&, index, wdata, k, weighted](Query query) {
       topk_queue topk(k);
       maxscore_query maxscore_q(topk);
       maxscore_q(make_max_scored_cursors(*index, *wdata, *scorer, query, weighted), index->num_docs());
@@ -320,7 +320,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "ranked_or_taat") == 0) {
-    query_fun = [&, index, wdata, k, accumulator = Simple_Accumulator(index->num_docs())](Query query) mutable {
+    query_fun = [&, index, wdata, k, weighted, accumulator = Simple_Accumulator(index->num_docs())](Query query) mutable {
       topk_queue topk(k);
       ranked_or_taat_query ranked_or_taat_q(topk);
       ranked_or_taat_q(
@@ -329,7 +329,7 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
       return topk.topk();
     };
   } else if (strcmp(algorithm, "ranked_or_taat_lazy") == 0) {
-    query_fun = [&, index, wdata, k, accumulator = Lazy_Accumulator<4>(index->num_docs())](Query query) mutable {
+    query_fun = [&, index, wdata, k, weighted, accumulator = Lazy_Accumulator<4>(index->num_docs())](Query query) mutable {
       topk_queue topk(k);
       ranked_or_taat_query ranked_or_taat_q(topk);
       ranked_or_taat_q(

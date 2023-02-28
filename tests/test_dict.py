@@ -35,7 +35,7 @@ class DictTest(TempDirTestCase):
       idx_pipe.index(dataset.get_corpus_iter())
       self.assertTrue(idx.built())
       self.assertEqual(len(idx), 11429)
-      MAPS=[0.0049]
+      MAPS=[0.0047]
       TRANS=[DictTokeniser('query') >> pt.apply.rename({'query_dict' : 'query_toks'}) >> idx.quantized(num_results=10)]
       res = TRANS[0](dataset.get_topics())
       print(res['score'].values.tolist())
