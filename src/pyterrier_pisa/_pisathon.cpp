@@ -372,8 +372,10 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   Py_buffer result_scores;
 
   /* Parse arguments */
+  // Refer to the documentation for the kwarg type (character) definitions: https://docs.python.org/3/c-api/arg.html
+  // Most notably: s: string, O: PyObject, K: unsigned long long, I: unsigned int, f: float, w*: Py_buffer
   static const char *kwlist[] = {"index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", "pretokenised", "query_weighted", "result_qidxs", "result_docnos", "result_ranks", "result_scores", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sssssO|KIffffIsIiiw*w*w*w*", const_cast<char **>(kwlist),//TODO update parse
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sssssO|KIffffIsIiiw*w*w*w*", const_cast<char **>(kwlist),
                                      &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &in_queries, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &k, &stop_fname, &threads, &pretoks, &in_weighted, &result_qidxs, &result_docnos, &result_ranks, &result_scores))
   {
       return NULL;

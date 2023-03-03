@@ -13,7 +13,7 @@ class VariantTests(TempDirTestCase):
 
         from pyterrier_pisa import PisaIndex, PisaQueryAlgorithm
         dataset = pt.get_dataset("vaswani")
-        idx = PisaIndex(self.test_dir, index_encoding=encoding, overwrite=True, threads=1)
+        idx = PisaIndex(self.test_dir, index_encoding=encoding, overwrite=True)
         idx.index(dataset.get_corpus_iter())
         for qalg in PisaQueryAlgorithm:
             with self.subTest(encoding=encoding, qalg=qalg):
