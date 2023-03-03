@@ -38,8 +38,6 @@ class DictTest(TempDirTestCase):
       MAPS=[0.0047]
       TRANS=[DictTokeniser('query') >> idx.quantized(num_results=10)]
       res = TRANS[0](dataset.get_topics())
-      print(res['score'].values.tolist())
-      print(res['docno'].values.tolist())
       exp_df = pt.Experiment(
           TRANS,
           *dataset.get_topicsqrels(),
@@ -53,19 +51,16 @@ class DictTest(TempDirTestCase):
         import pandas as pd
         idx = PisaIndex(self.test_dir+'/index', text_field='text_toks', stemmer='none')
         idx.index([
-          {'docno' : 'd1', 'text_toks' : {'a' : 1, 'b' : 14}}
+          {'docno' : 'd1', 'text_toks' : {'a' : 7.3, 'b' : 3.99}}
         ])
         self.assertTrue(idx.built())
-        bm25=idx.bm25()
-        df_query = pd.DataFrame([['q1', {'a' : 2.3}]], columns=['qid', 'query_toks'])
-        res = bm25.transform(df_query)
+        quantized = idx.quantized()
+        df_query = pd.DataFrame([['q1', {'a' : 2.3, 'b': 4.1}]], columns=['qid', 'query_toks'])
+        res = quantized.transform(df_query)
         self.assertEqual(1, len(res))
         self.assertEqual('d1', res.iloc[0].docno)
         self.assertEqual('q1', res.iloc[0].qid)
-        print(idx.quantized()(pd.DataFrame([['q1', {'a' : 2.3}]], columns=['qid', 'query_toks'])))
-        print(idx.quantized()(pd.DataFrame([['q1', {'a' : 1000}]], columns=['qid', 'query_toks'])))
-        print(idx.quantized()(pd.DataFrame([['q1', {'a' : 1000, 'b': 1}]], columns=['qid', 'query_toks'])))
-        print(idx.quantized()(pd.DataFrame([['q1', {'a' : 1, 'b': 1000}]], columns=['qid', 'query_toks'])))
+        self.assertEqual(26., res.iloc[0].score) # int(7.3) * int(2.3) + int(3.99) * int(4.1) = 7 * 2 + 3 * 4 = 14 + 12 = 
 
 if __name__ == "__main__":
   import unittest
