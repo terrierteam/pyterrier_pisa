@@ -480,7 +480,7 @@ class DictTokeniser(pt.Transformer):
 
   def transform(self, inp):
     from nltk import word_tokenize
-    return inp.assign(**{f'{self.field}_dict': inp[self.field].map(lambda x: dict(Counter(self.stemmer(t) for t in word_tokenize(x.lower()) if t.isalnum() )))})
+    return inp.assign(**{f'{self.field}_toks': inp[self.field].map(lambda x: dict(Counter(self.stemmer(t) for t in word_tokenize(x.lower()) if t.isalnum() )))})
 
 if __name__ == '__main__':
   main()

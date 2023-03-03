@@ -10,13 +10,13 @@ class DictTest(TempDirTestCase):
       import nltk
       nltk.download('punkt')
       dataset = pt.get_dataset('irds:vaswani')
-      idx = PisaIndex(self.test_dir+'/index', text_field='text_dict', stemmer='none')
+      idx = PisaIndex(self.test_dir+'/index', text_field='text_toks', stemmer='none')
       idx_pipe = DictTokeniser() >> idx
       idx_pipe.index(dataset.get_corpus_iter())
       self.assertTrue(idx.built())
       self.assertEqual(len(idx), 11429)
       MAPS=[0.2256]
-      TRANS=[DictTokeniser('query') >> pt.apply.rename({'query_dict' : 'query_toks'}) >> idx.bm25()]
+      TRANS=[DictTokeniser('query') >> idx.bm25()]
       exp_df = pt.Experiment(
           TRANS,
           *dataset.get_topicsqrels(),
@@ -30,13 +30,13 @@ class DictTest(TempDirTestCase):
       import nltk
       nltk.download('punkt')
       dataset = pt.get_dataset('irds:vaswani')
-      idx = PisaIndex(self.test_dir+'/index', text_field='text_dict', stemmer='none')
+      idx = PisaIndex(self.test_dir+'/index', text_field='text_toks', stemmer='none')
       idx_pipe = DictTokeniser() >> idx
       idx_pipe.index(dataset.get_corpus_iter())
       self.assertTrue(idx.built())
       self.assertEqual(len(idx), 11429)
       MAPS=[0.0047]
-      TRANS=[DictTokeniser('query') >> pt.apply.rename({'query_dict' : 'query_toks'}) >> idx.quantized(num_results=10)]
+      TRANS=[DictTokeniser('query') >> idx.quantized(num_results=10)]
       res = TRANS[0](dataset.get_topics())
       print(res['score'].values.tolist())
       print(res['docno'].values.tolist())
@@ -51,9 +51,9 @@ class DictTest(TempDirTestCase):
     def test_dict(self):
         from pyterrier_pisa import PisaIndex
         import pandas as pd
-        idx = PisaIndex(self.test_dir+'/index', text_field='text_dict', stemmer='none')
+        idx = PisaIndex(self.test_dir+'/index', text_field='text_toks', stemmer='none')
         idx.index([
-          {'docno' : 'd1', 'text_dict' : {'a' : 1, 'b' : 14}}
+          {'docno' : 'd1', 'text_toks' : {'a' : 1, 'b' : 14}}
         ])
         self.assertTrue(idx.built())
         bm25=idx.bm25()
