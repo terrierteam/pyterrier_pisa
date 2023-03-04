@@ -11,7 +11,7 @@ class DictTest(TempDirTestCase):
       nltk.download('punkt')
       dataset = pt.get_dataset('irds:vaswani')
       idx = PisaIndex(self.test_dir+'/index', text_field='text_toks', stemmer='none')
-      idx_pipe = DictTokeniser() >> idx
+      idx_pipe = DictTokeniser() >> idx.toks_indexer(scale=1)
       idx_pipe.index(dataset.get_corpus_iter())
       self.assertTrue(idx.built())
       self.assertEqual(len(idx), 11429)
@@ -31,7 +31,7 @@ class DictTest(TempDirTestCase):
       nltk.download('punkt')
       dataset = pt.get_dataset('irds:vaswani')
       idx = PisaIndex(self.test_dir+'/index', text_field='text_toks', stemmer='none')
-      idx_pipe = DictTokeniser() >> idx
+      idx_pipe = DictTokeniser() >> idx.toks_indexer(scale=1)
       idx_pipe.index(dataset.get_corpus_iter())
       self.assertTrue(idx.built())
       self.assertEqual(len(idx), 11429)
@@ -50,7 +50,7 @@ class DictTest(TempDirTestCase):
         from pyterrier_pisa import PisaIndex
         import pandas as pd
         idx = PisaIndex(self.test_dir+'/index', text_field='text_toks', stemmer='none')
-        idx.index([
+        idx.toks_indexer(scale=1).index([
           {'docno' : 'd1', 'text_toks' : {'a' : 7.3, 'b' : 3.99}}
         ])
         self.assertTrue(idx.built())
@@ -61,6 +61,22 @@ class DictTest(TempDirTestCase):
         self.assertEqual('d1', res.iloc[0].docno)
         self.assertEqual('q1', res.iloc[0].qid)
         self.assertEqual(26., res.iloc[0].score) # int(7.3) * int(2.3) + int(3.99) * int(4.1) = 7 * 2 + 3 * 4 = 14 + 12 = 
+
+    def test_dict_scale(self):
+        from pyterrier_pisa import PisaIndex
+        import pandas as pd
+        idx = PisaIndex(self.test_dir+'/index', text_field='text_toks', stemmer='none')
+        idx.toks_indexer(scale=100).index([
+          {'docno' : 'd1', 'text_toks' : {'a' : 7.3, 'b' : 3.99}}
+        ])
+        self.assertTrue(idx.built())
+        quantized = idx.quantized()
+        df_query = pd.DataFrame([['q1', {'a' : 2.3, 'b': 4.1}]], columns=['qid', 'query_toks'])
+        res = quantized.transform(df_query)
+        self.assertEqual(1, len(res))
+        self.assertEqual('d1', res.iloc[0].docno)
+        self.assertEqual('q1', res.iloc[0].qid)
+        self.assertEqual(3056., res.iloc[0].score) # int(7.3 * 100) * int(2.3) + int(3.99 * 100) * int(4.1) = 730 * 2 + 399 * 4 = 1460 + 1596 = 3056
 
 if __name__ == "__main__":
   import unittest

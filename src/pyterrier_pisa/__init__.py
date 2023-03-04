@@ -144,7 +144,6 @@ class PisaIndex(pt.Indexer):
         warn(f'text_field not specified; indexing all str fields: {text_field}')
 
     mode = PisaIndexingMode.overwrite if self.overwrite else PisaIndexingMode.create
-    warn(f'{mode} {type(mode)}')
 
     if isinstance(text_field, str) and isinstance(first_doc[text_field], dict):
       return self.toks_indexer(text_field, mode=mode).index(it)
@@ -236,13 +235,13 @@ class PisaIndex(pt.Indexer):
       yield {'docno': did.strip(), field: dict(Counter(lexicon[i] for i in m[start:end]))}
       idx = end
 
-  def indexer(self, text_field='text', mode=PisaIndexingMode.create, threads=None, batch_size=None):
-    return PisaIndexer(self.path, text_field, mode, stemmer=self.stemmer, threads=threads or self.threads, batch_size=batch_size or self.batch_size)
+  def indexer(self, text_field=None, mode=PisaIndexingMode.create, threads=None, batch_size=None):
+    return PisaIndexer(self.path, text_field or self.text_field or 'text', mode, stemmer=self.stemmer, threads=threads or self.threads, batch_size=batch_size or self.batch_size)
 
-  def toks_indexer(self, text_field='toks', mode=PisaIndexingMode.create, threads=None, batch_size=None, scale=100.):
+  def toks_indexer(self, text_field=None, mode=PisaIndexingMode.create, threads=None, batch_size=None, scale=100.):
     if PisaStemmer(self.stemmer) != PisaStemmer.none:
       raise ValueError("To index from dicts, you must set stemmer='none'")
-    return PisaToksIndexer(self.path, text_field, mode, threads=threads or self.threads, batch_size=self.batch_size, scale=scale)
+    return PisaToksIndexer(self.path, text_field or self.text_field or 'toks', mode, threads=threads or self.threads, batch_size=self.batch_size, scale=scale)
 
 
 class PisaRetrieve(pt.Transformer):
