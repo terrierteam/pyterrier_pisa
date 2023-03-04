@@ -39,7 +39,7 @@ setup(
     install_requires=['python-terrier>=0.8.0', 'numpy>=1.21.0'],
     python_requires=">=3.7",
     entry_points={
-        'console_scripts': ['pyterrier_pisa=pyterrier_pisa:main'],
+        'console_scripts': ['pyterrier_pisa=pyterrier_pisa.cli:main'],
     },
     cmdclass={'bdist_wheel': bdist_wheel}
 )
