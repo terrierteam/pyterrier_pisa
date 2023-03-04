@@ -54,7 +54,7 @@ class DictTest(TempDirTestCase):
           {'docno' : 'd1', 'text_toks' : {'a' : 7.3, 'b' : 3.99}}
         ])
         self.assertTrue(idx.built())
-        quantized = idx.quantized()
+        quantized = idx.quantized(toks_scale=1.)
         df_query = pd.DataFrame([['q1', {'a' : 2.3, 'b': 4.1}]], columns=['qid', 'query_toks'])
         res = quantized.transform(df_query)
         self.assertEqual(1, len(res))
@@ -70,13 +70,13 @@ class DictTest(TempDirTestCase):
           {'docno' : 'd1', 'text_toks' : {'a' : 7.3, 'b' : 3.99}}
         ])
         self.assertTrue(idx.built())
-        quantized = idx.quantized()
+        quantized = idx.quantized(toks_scale=10.)
         df_query = pd.DataFrame([['q1', {'a' : 2.3, 'b': 4.1}]], columns=['qid', 'query_toks'])
         res = quantized.transform(df_query)
         self.assertEqual(1, len(res))
         self.assertEqual('d1', res.iloc[0].docno)
         self.assertEqual('q1', res.iloc[0].qid)
-        self.assertEqual(3056., res.iloc[0].score) # int(7.3 * 100) * int(2.3) + int(3.99 * 100) * int(4.1) = 730 * 2 + 399 * 4 = 1460 + 1596 = 3056
+        self.assertEqual(33149., res.iloc[0].score) # int(7.3 * 100) * int(2.3 * 10) + int(3.99 * 100) * int(4.1 * 10) = 33149
 
 if __name__ == "__main__":
   import unittest
