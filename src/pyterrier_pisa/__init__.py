@@ -81,6 +81,12 @@ class PisaStopwords(Enum):
   none = 'none'
 
 
+class PisaIndexingMode(Enum):
+  create = 'create'
+  overwrite = 'overwrite'
+  # append?
+
+
 PISA_INDEX_DEFAULTS = {
   'stemmer': PisaStemmer.porter2,
   'index_encoding': PisaIndexEncoding.block_simdbp,
@@ -133,51 +139,173 @@ class PisaIndex(pt.Indexer):
     return (Path(self.path)/'pt_pisa_config.json').exists()
 
   def index(self, it):
-    ppath = Path(self.path)
-    if self.built():
-      if self.overwrite:
-        warn(f'Removing {str(ppath)}')
-        shutil.rmtree(ppath)
-      else:
-        raise RuntimeError('A PISA index already exists at {self.path}. If you want to overwrite it, pass overwrite=True to PisaIndex.')
-    if not ppath.exists():
-      ppath.mkdir(parents=True, exist_ok=True)
     it = more_itertools.peekable(it)
     first_doc = it.peek()
-    if isinstance(self.text_field, str) and isinstance(first_doc[self.text_field], dict):
-      assert self.stemmer.value == 'none', "To index from dicts, you must set stemmer='none'"
-      self._index_dicts(it)
+    text_field = self.text_field
+    if text_field is None: # infer the text field
+      dict_field = [k for k, v in sorted(first_doc.items()) if k.endswith('toks') and isinstance(v, dict)]
+      if dict_field:
+        text_field = dict_field[0]
+        warn(f'text_field not specified; using pre-tokenized field {repr(text_field)}')
+      else:
+        text_field = [k for k, v in sorted(first_doc.items()) if isinstance(v, str) and k != 'docno']
+        assert len(text_field) >= 1, f"no str or toks fields found in document. Fields: {k: type(v) for k, v in first_doc.items()}"
+        warn(f'text_field not specified; indexing all str fields: {text_field}')
+
+    mode = PisaIndexingMode.overwrite if self.overwrite else PisaIndexingMode.create
+
+    if isinstance(text_field, str) and isinstance(first_doc[text_field], dict):
+      return self.toks_indexer(text_field, mode=mode).index(it)
+    return self.indexer(text_field, mode=mode).index(it)
+
+  def bm25(self, k1=0.9, b=0.4, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
+    return PisaRetrieve(self, scorer=PisaScorer.bm25, bm25_k1=k1, bm25_b=b, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
+
+  def dph(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
+    return PisaRetrieve(self, scorer=PisaScorer.dph, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
+
+  def pl2(self, c=1., num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
+    return PisaRetrieve(self, scorer=PisaScorer.pl2, pl2_c=c, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
+
+  def qld(self, mu=1000., num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
+    return PisaRetrieve(self, scorer=PisaScorer.qld, qld_mu=mu, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
+
+  def quantized(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
+    return PisaRetrieve(self, scorer=PisaScorer.quantized, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
+
+  def num_terms(self):
+    assert self.built()
+    return _pisathon.num_terms(self.path)
+
+  def num_docs(self):
+    assert self.built()
+    return _pisathon.num_docs(self.path)
+
+  def __len__(self):
+    return self.num_docs()
+
+  def __repr__(self):
+    return f'PisaIndex({repr(self.path)})'
+
+  @staticmethod
+  def from_dataset(dataset: Union[str, Dataset], variant: str = 'pisa_porter2', version: str = 'latest', **kwargs):
+    from pyterrier.batchretrieve import _from_dataset
+    return _from_dataset(dataset, variant=variant, version=version, clz=PisaIndex, **kwargs)
+
+  @staticmethod
+  def from_ciff(ciff_file: str, index_path, overwrite: bool = False, stemmer = PISA_INDEX_DEFAULTS['stemmer']):
+    import pyciff
+    stemmer = PisaStemmer(stemmer)
+    warn(f"Using stemmer {stemmer}, which may not match the stemmer used to construct {ciff_file}. You may need to instead pass stemmer='none' and perform the stemming in a pipeline to match the behaviour.")
+    if os.path.exists(index_path) and not overwrite:
+      raise FileExistsError(f'An index already exists at {index_path}')
+    ppath = Path(index_path)
+    ppath.mkdir(parents=True, exist_ok=True)
+    pyciff.ciff_to_pisa(ciff_file, str(ppath/'inv'))
+    # Move the files around a bit to where they are typically located
+    (ppath/'inv.documents').rename(ppath/'fwd.documents')
+    (ppath/'inv.terms').rename(ppath/'fwd.terms')
+    # The current version of pyciff does not create a termlex file, but a future version might
+    if (ppath/'inv.termlex').exists():
+      (ppath/'inv.termlex').rename(ppath/'fwd.termlex')
     else:
-      with tempfile.TemporaryDirectory() as d:
-        fifo = os.path.join(d, 'fifo')
-        os.mkfifo(fifo)
-        threading.Thread(target=self._write_fifo, args=(it, fifo), daemon=True).start()
-        _pisathon.index(fifo, self.path, '' if self.stemmer == PisaStemmer.none else self.stemmer.value, self.batch_size, self.threads)
+      # If it wasn't created, create one from the terms file
+      _pisathon.build_binlex(str(ppath/'fwd.terms'), str(ppath/'fwd.termlex'))
+    # The current version of pyciff does not create a doclex file, but a future version might
+    if (ppath/'inv.doclex').exists():
+      (ppath/'inv.doclex').rename(ppath/'fwd.doclex')
+    else:
+      # If it wasn't created, create one from the documents file
+      _pisathon.build_binlex(str(ppath/'fwd.documents'), str(ppath/'fwd.doclex'))
     with open(ppath/'pt_pisa_config.json', 'wt') as fout:
+      json.dump({
+        'stemmer': stemmer.value,
+      }, fout)
+    return PisaIndex(index_path, stemmer=stemmer)
+
+  def to_ciff(self, ciff_file: str, description: str = 'from pyterrier_pisa'):
+    assert self.built()
+    import pyciff
+    pyciff.pisa_to_ciff(str(Path(self.path)/'inv'), str(Path(self.path)/'fwd.terms'), str(Path(self.path)/'fwd.documents'), ciff_file, description)
+
+  def get_corpus_iter(self, field='toks', verbose=True):
+    assert self.built()
+    ppath = Path(self.path)
+    assert (ppath/'fwd').exists(), "get_corpus_iter requires a fwd index"
+    m = np.memmap(ppath/'fwd', mode='r', dtype=np.uint32)
+    lexicon = [l.strip() for l in (ppath/'fwd.terms').open('rt')]
+    idx = 2
+    it = iter((ppath/'fwd.documents').open('rt'))
+    if verbose:
+      it = _logger.pbar(it, total=int(m[1]), desc=f'iterating documents in {self}', unit='doc')
+    for did in it:
+      start = idx + 1
+      end = start + m[idx]
+      yield {'docno': did.strip(), field: dict(Counter(lexicon[i] for i in m[start:end]))}
+      idx = end
+
+  def indexer(self, text_field='text', mode=PisaIndexingMode.create, threads=None, batch_size=None):
+    return PisaIndexer(self.path, text_field, mode, stemmer=self.stemmer, threads=threads or self.threads, batch_size=batch_size or self.batch_size)
+
+  def toks_indexer(self, text_field='toks', mode=PisaIndexingMode.create, threads=None, batch_size=None):
+    if PisaStemmer(self.stemmer) != PisaStemmer.none:
+      raise ValueError("To index from dicts, you must set stemmer='none'")
+    return PisaToksIndexer(self.path, text_field, mode, threads=threads or self.threads, batch_size=self.batch_size)
+
+
+class PisaIndexer(pt.Indexer):
+  def __init__(self, path, text_field, mode=PisaIndexingMode.create, stemmer=PISA_INDEX_DEFAULTS['stemmer'], threads=1, batch_size=100_000):
+    self.path = path
+    self.text_field = text_field
+    self.mode = PisaIndexingMode(mode)
+    self.stemmer = PisaStemmer(stemmer)
+    self.threads = threads
+    self.batch_size = batch_size
+
+  def index(self, it):
+    path = Path(self.path)
+    if PisaIndex.built(self):
+      if PisaIndexingMode(self.mode) == PisaIndexingMode.overwrite:
+        warn(f'Removing {str(path)}')
+        shutil.rmtree(path)
+      else:
+        raise RuntimeError('A PISA index already exists at {self.path}. If you want to overwrite it, set mode="overwrite"')
+    if not path.exists():
+      path.mkdir(parents=True, exist_ok=True)
+
+    self._index(it)
+
+    with open(path/'pt_pisa_config.json', 'wt') as fout:
       json.dump({
         'stemmer': self.stemmer.value,
       }, fout)
+    return PisaIndex(self.path, batch_size=self.batch_size, stemmer=self.stemmer, text_field=self.text_field, threads=self.threads)
 
-  def _write_fifo(self, it, fifo):
+  def _index(self, it):
+    with tempfile.TemporaryDirectory() as d:
+      fifo = os.path.join(d, 'fifo')
+      os.mkfifo(fifo)
+      threading.Thread(target=self._write_fifo, args=(it, fifo, self.text_field), daemon=True).start()
+      _pisathon.index(fifo, str(self.path), '' if self.stemmer == PisaStemmer.none else self.stemmer.value, self.batch_size, self.threads)
+
+  def _write_fifo(self, it, fifo, text_field):
     with open(fifo, 'wt') as fout:
-      text_field = self.text_field
-      if text_field is None:
-        it = more_itertools.peekable(it)
-        first_doc = it.peek()
-        text_field = [k for k, v in sorted(first_doc.items()) if isinstance(v, str) and k != 'docno']
-        assert len(text_field) >= 1, f"no str fields found in document. Fields: {k: type(v) for k, v in first_doc.items()}"
-        warn(f'text_field not specified; indexing str fields found in the first document: {text_field}')
-      elif isinstance(text_field, str):
+      if isinstance(text_field, str):
         text_field = [text_field]
       for doc in it:
         docno, text = doc['docno'], ' '.join(doc[f] for f in text_field)
         text = text.replace('\n', ' ').replace('\r', ' ') # any other cleanup?
         fout.write(f'{docno} {text}\n')
 
-  def _index_dicts(self, it):
+
+class PisaToksIndexer(PisaIndexer):
+  def __init__(self, path, text_field, mode=PisaIndexingMode.create, threads=1, batch_size=100_000):
+    super().__init__(path, text_field, mode, PisaStemmer.none, threads, batch_size=batch_size)
+
+  def _index(self, it):
     lexicon = {}
-    path = Path(self.path)
     docid = 0
+    path = Path(self.path)
     with (path/'fwd.documents').open('wt') as f_docs, (path/'fwd.terms').open('wt') as f_lex:
       for bidx, batch in enumerate(more_itertools.chunked(it, self.batch_size)):
         _logger.info(f'inverting batch {bidx}: documents [{docid},{docid+len(batch)})')
@@ -230,91 +358,6 @@ class PisaIndex(pt.Indexer):
     _pisathon.build_binlex(str(path/'fwd.documents'), str(path/'fwd.doclex'))
     _pisathon.build_binlex(str(path/'fwd.terms'), str(path/'fwd.termlex'))
 
-  def bm25(self, k1=0.9, b=0.4, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
-    return PisaRetrieve(self, scorer=PisaScorer.bm25, bm25_k1=k1, bm25_b=b, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
-
-  def dph(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
-    return PisaRetrieve(self, scorer=PisaScorer.dph, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
-
-  def pl2(self, c=1., num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
-    return PisaRetrieve(self, scorer=PisaScorer.pl2, pl2_c=c, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
-
-  def qld(self, mu=1000., num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
-    return PisaRetrieve(self, scorer=PisaScorer.qld, qld_mu=mu, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
-
-  def quantized(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None):
-    return PisaRetrieve(self, scorer=PisaScorer.quantized, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted)
-
-  def num_terms(self):
-    if self.built():
-      return _pisathon.num_terms(self.path)
-
-  def num_docs(self):
-    if self.built():
-      return _pisathon.num_docs(self.path)
-
-  def __len__(self):
-    return self.num_docs()
-
-  def __repr__(self):
-    return f'PisaIndex({repr(self.path)})'
-
-  @staticmethod
-  def from_dataset(dataset: Union[str, Dataset], variant: str = 'pisa_porter2', version: str = 'latest', **kwargs):
-    from pyterrier.batchretrieve import _from_dataset
-    return _from_dataset(dataset, variant=variant, version=version, clz=PisaIndex, **kwargs)
-
-  @staticmethod
-  def from_ciff(ciff_file: str, index_path, overwrite: bool = False, stemmer = PISA_INDEX_DEFAULTS['stemmer']):
-    import pyciff
-    stemmer = PisaStemmer(stemmer)
-    warn(f"Using stemmer {stemmer}, which may not match the stemmer used to construct {ciff_file}. You may need to instead pass stemmer='none' and perform the stemming in a pipeline to match the behaviour.")
-    if os.path.exists(index_path) and not overwrite:
-      raise FileExistsError(f'An index already exists at {index_path}')
-    ppath = Path(index_path)
-    ppath.mkdir(parents=True, exist_ok=True)
-    pyciff.ciff_to_pisa(ciff_file, str(ppath/'inv'))
-    # Move the files around a bit to where they are typically located
-    (ppath/'inv.documents').rename(ppath/'fwd.documents')
-    (ppath/'inv.terms').rename(ppath/'fwd.terms')
-    # The current version of pyciff does not create a termlex file, but a future version might
-    if (ppath/'inv.termlex').exists():
-      (ppath/'inv.termlex').rename(ppath/'fwd.termlex')
-    else:
-      # If it wasn't created, create one from the terms file
-      _pisathon.build_binlex(str(ppath/'fwd.terms'), str(ppath/'fwd.termlex'))
-    # The current version of pyciff does not create a doclex file, but a future version might
-    if (ppath/'inv.doclex').exists():
-      (ppath/'inv.doclex').rename(ppath/'fwd.doclex')
-    else:
-      # If it wasn't created, create one from the documents file
-      _pisathon.build_binlex(str(ppath/'fwd.documents'), str(ppath/'fwd.doclex'))
-    with open(ppath/'pt_pisa_config.json', 'wt') as fout:
-      json.dump({
-        'stemmer': stemmer.value,
-      }, fout)
-    return PisaIndex(index_path, stemmer=stemmer)
-
-  def to_ciff(self, ciff_file: str, description: str = 'from pyterrier_pisa'):
-    assert self.built()
-    import pyciff
-    pyciff.pisa_to_ciff(str(Path(self.path)/'inv'), str(Path(self.path)/'fwd.terms'), str(Path(self.path)/'fwd.documents'), ciff_file, description)
-
-  def get_corpus_iter(self, field='text_toks', verbose=True):
-    assert self.built()
-    ppath = Path(self.path)
-    assert (ppath/'fwd').exists(), "get_corpus_iter requires a fwd index"
-    m = np.memmap(ppath/'fwd', mode='r', dtype=np.uint32)
-    lexicon = [l.strip() for l in (ppath/'fwd.terms').open('rt')]
-    idx = 2
-    it = iter((ppath/'fwd.documents').open('rt'))
-    if verbose:
-      it = _logger.pbar(it, total=int(m[1]), desc=f'iterating documents in {self}', unit='doc')
-    for did in it:
-      start = idx + 1
-      end = start + m[idx]
-      yield {'docno': did.strip(), field: dict(Counter(lexicon[i] for i in m[start:end]))}
-      idx = end
 
 class PisaRetrieve(pt.Transformer):
   def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, query_weighted=None, **retr_args):
