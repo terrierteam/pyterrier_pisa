@@ -239,10 +239,10 @@ class PisaIndex(pt.Indexer):
   def indexer(self, text_field='text', mode=PisaIndexingMode.create, threads=None, batch_size=None):
     return PisaIndexer(self.path, text_field, mode, stemmer=self.stemmer, threads=threads or self.threads, batch_size=batch_size or self.batch_size)
 
-  def toks_indexer(self, text_field='toks', mode=PisaIndexingMode.create, threads=None, batch_size=None):
+  def toks_indexer(self, text_field='toks', mode=PisaIndexingMode.create, threads=None, batch_size=None, scale=100.):
     if PisaStemmer(self.stemmer) != PisaStemmer.none:
       raise ValueError("To index from dicts, you must set stemmer='none'")
-    return PisaToksIndexer(self.path, text_field, mode, threads=threads or self.threads, batch_size=self.batch_size)
+    return PisaToksIndexer(self.path, text_field, mode, threads=threads or self.threads, batch_size=self.batch_size, scale=scale)
 
 
 class PisaRetrieve(pt.Transformer):

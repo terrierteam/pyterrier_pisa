@@ -68,8 +68,10 @@ class PisaIndexer(pt.Indexer):
 
 
 class PisaToksIndexer(PisaIndexer):
-  def __init__(self, path, text_field, mode=PisaIndexingMode.create, threads=1, batch_size=100_000):
+  def __init__(self, path, text_field, mode=PisaIndexingMode.create, threads=1, batch_size=100_000, scale=100.):
     super().__init__(path, text_field, mode, pyterrier_pisa.PisaStemmer.none, threads, batch_size=batch_size)
+    self.scale = float(scale)
+    assert self.scale > 0
 
   def _index(self, it):
     lexicon = {}
@@ -85,7 +87,7 @@ class PisaToksIndexer(PisaIndexer):
           l = 0
           f_docs.write(doc['docno']+'\n')
           for term, score in doc[self.text_field].items():
-            score = int(score)
+            score = int(score * self.scale)
             if score <= 0:
               continue
             l += score
