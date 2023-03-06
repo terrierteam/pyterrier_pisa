@@ -23,7 +23,7 @@ class PisaIndexingMode(Enum):
   # append?
 
 class PisaIndexer(pt.Indexer):
-  def __init__(self, path, text_field, mode=PisaIndexingMode.create, stemmer='porter2', threads=1, batch_size=100_000):
+  def __init__(self, path, text_field='text', mode=PisaIndexingMode.create, stemmer='porter2', threads=1, batch_size=100_000):
     self.path = path
     self.text_field = text_field
     self.mode = PisaIndexingMode(mode)
@@ -68,7 +68,7 @@ class PisaIndexer(pt.Indexer):
 
 
 class PisaToksIndexer(PisaIndexer):
-  def __init__(self, path, text_field, mode=PisaIndexingMode.create, threads=1, batch_size=100_000, scale=100.):
+  def __init__(self, path, text_field='toks', mode=PisaIndexingMode.create, threads=1, batch_size=100_000, scale=100.):
     super().__init__(path, text_field, mode, pyterrier_pisa.PisaStemmer.none, threads, batch_size=batch_size)
     self.scale = float(scale)
     assert self.scale > 0
