@@ -66,17 +66,17 @@ class DictTest(TempDirTestCase):
         from pyterrier_pisa import PisaIndex
         import pandas as pd
         idx = PisaIndex(self.test_dir+'/index', text_field='text_toks', stemmer='none')
-        idx.toks_indexer(scale=100).index([
+        idx.toks_indexer(scale=85.4).index([
           {'docno' : 'd1', 'text_toks' : {'a' : 7.3, 'b' : 3.99}}
         ])
         self.assertTrue(idx.built())
-        quantized = idx.quantized(toks_scale=10.)
+        quantized = idx.quantized(toks_scale=11.2)
         df_query = pd.DataFrame([['q1', {'a' : 2.3, 'b': 4.1}]], columns=['qid', 'query_toks'])
         res = quantized.transform(df_query)
         self.assertEqual(1, len(res))
         self.assertEqual('d1', res.iloc[0].docno)
         self.assertEqual('q1', res.iloc[0].qid)
-        self.assertEqual(33149., res.iloc[0].score) # int(7.3 * 100) * int(2.3 * 10) + int(3.99 * 100) * int(4.1 * 10) = 33149
+        self.assertEqual(30875., res.iloc[0].score) # int(7.3 * 85.4) * int(2.3 * 11.2) + int(3.99 * 85.4) * int(4.1 * 11.2) = 33149
 
 if __name__ == "__main__":
   import unittest
