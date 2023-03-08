@@ -28,14 +28,12 @@ index = PisaIndex('./msmarco-passage-pisa')
 index.index(dataset.get_corpus_iter())
 ```
 
-Since PISA does not support multiple fields, you will need to have all the text you want to index in a single field. By default, it uses the "text" field, but this can be overridden with `text_field`.
+You can also select which text field(s) to index. If not specified, all fields of type `str` will be indexed.
 
 ```python
 dataset = pt.get_dataset('irds:cord19')
-index = PisaIndex('./cord19-pisa', text_field='title_and_abstract')
-# create a new field called title_and_abstract, from the title and abstract text
-index_pipeline = pt.apply.title_and_abstract(lambda r: f'{r["title"]} {r["abstract"]}') >> index
-index_pipeline.index(dataset.get_corpus_iter())
+index = PisaIndex('./cord19-pisa', text_field=['title', 'abstract'])
+index.index(dataset.get_corpus_iter())
 ```
 
 `PisaIndex` accepts various other options to configure the indexing process. Most notable are:
@@ -48,6 +46,18 @@ index_pipeline.index(dataset.get_corpus_iter())
 ```python
 # E.g.,
 index = PisaIndex('./cord19-pisa', stemmer='krovetz', threads=32)
+```
+
+You can also index token scores computed from another transformer, such as a learned sparse document encoder.
+Here, we'll use the [pyt_splade](https://github.com/cmacdonald/pyt_splade) plugin:
+
+```python
+import pyt_splade
+splade = pyt_splade.Splade()
+index = PisaIndex('./msmarco-passage-splade', stemmer='none')
+pipeline = splade.doc_encoder() >> index.toks_indexer()
+dataset = pt.get_dataset('irds:msmarco-passage')
+pipeline.index(dataset.get_corpus_iter())
 ```
 
 For some collections you can download pre-built indices from [data.terrier.org](http://data.terrier.org/). PISA indices are prefixed with `pisa_`.
