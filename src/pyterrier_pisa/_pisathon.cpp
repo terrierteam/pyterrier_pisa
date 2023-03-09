@@ -171,7 +171,7 @@ static PyObject *py_prepare_index(PyObject *self, PyObject *args, PyObject *kwar
   const char* index_dir;
   const char* scorer_name;
   const char* encoding;
-  unsigned long long block_size = 1000;
+  unsigned long long block_size = 64;
   unsigned int in_quantize = 0;
   float bm25_k1 = -100;
   float bm25_b = -100;
@@ -354,7 +354,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   const char* stop_fname = "";
   int pretoks = 0;
   PyObject* in_queries;
-  unsigned long long block_size = 1000;
+  unsigned long long block_size = 64;
   unsigned int in_quantize = 0;
   unsigned int in_weighted = 0;
   unsigned int k = 1000;
