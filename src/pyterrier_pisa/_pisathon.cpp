@@ -137,8 +137,6 @@ static PyObject *py_merge_inv(PyObject *self, PyObject *args) {
       return NULL;
   }
 
-  printf("%s %i %i\n", fin, batch_count, term_count);
-
   pisa::invert::merge_batches(fin, batch_count, term_count);
 
   Py_RETURN_NONE;

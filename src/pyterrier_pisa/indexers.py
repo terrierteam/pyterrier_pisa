@@ -101,12 +101,15 @@ class PisaToksIndexer(PisaIndexer):
         with (path/f'inv.batch.{bidx}.docs').open('wb') as f_did, (path/f'inv.batch.{bidx}.freqs').open('wb') as f_score, (path/f'inv.batch.{bidx}.sizes').open('wb') as f_len:
           f_did.write(np.array([1, len(batch)], dtype=np.uint32).tobytes())
           for i in range(len(lexicon)):
-            if i in inv_did:
-              l = len(inv_did[i])
-              f_did.write(np.array([l] + inv_did[i], dtype=np.uint32).tobytes())
-              f_score.write(np.array([l] + inv_score[i], dtype=np.uint32).tobytes())
+            l = len(inv_did[i])
+            f_did.write(np.array([l] + inv_did[i], dtype=np.uint32).tobytes())
+            f_score.write(np.array([l] + inv_score[i], dtype=np.uint32).tobytes())
           f_len.write(np.array([len(lens)] + lens, dtype=np.uint32).tobytes())
     _pisathon.merge_inv(str(path/'inv'), bidx+1, len(lexicon))
+    for i in range(bidx+1):
+      (path/f'inv.batch.{i}.docs').unlink()
+      (path/f'inv.batch.{i}.freqs').unlink()
+      (path/f'inv.batch.{i}.sizes').unlink()
     (path/'inv.docs').rename(path/'inv.docs.tmp')
     (path/'inv.freqs').rename(path/'inv.freqs.tmp')
     in_docs = np.memmap(path/'inv.docs.tmp', mode='r', dtype=np.uint32)
@@ -119,12 +122,15 @@ class PisaToksIndexer(PisaIndexer):
       while i < in_docs.shape[0]:
         offsets_lens.append((i, in_docs[i]+1))
         i += in_docs[i] + 1
-      print(len(offsets_lens))
       for term in _logger.pbar(sorted(lexicon), desc='re-mapping term ids'):
         f_lex.write(f'{term}\n')
         i = lexicon[term]
         start, l = offsets_lens[i]
         f_docs.write(in_docs[start:start+l])
         f_freqs.write(in_freqs[start:start+l])
+    del in_docs # close mmap
+    del in_freqs # close mmap
+    (path/'inv.docs.tmp').unlink()
+    (path/'inv.freqs.tmp').unlink()
     _pisathon.build_binlex(str(path/'fwd.documents'), str(path/'fwd.doclex'))
     _pisathon.build_binlex(str(path/'fwd.terms'), str(path/'fwd.termlex'))
