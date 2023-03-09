@@ -48,18 +48,6 @@ index.index(dataset.get_corpus_iter())
 index = PisaIndex('./cord19-pisa', stemmer='krovetz', threads=32)
 ```
 
-You can also index token scores computed from another transformer, such as a learned sparse document encoder.
-Here, we'll use the [pyt_splade](https://github.com/cmacdonald/pyt_splade) plugin:
-
-```python
-import pyt_splade
-splade = pyt_splade.Splade()
-index = PisaIndex('./msmarco-passage-splade', stemmer='none')
-pipeline = splade.doc_encoder() >> index.toks_indexer()
-dataset = pt.get_dataset('irds:msmarco-passage')
-pipeline.index(dataset.get_corpus_iter())
-```
-
 For some collections you can download pre-built indices from [data.terrier.org](http://data.terrier.org/). PISA indices are prefixed with `pisa_`.
 
 ```python
@@ -182,6 +170,24 @@ dataset = pt.get_dataset('irds:vaswani')
 index = PisaIndex('./vaswani-doc2query-pisa')
 index_pipeline = doc2query >> pt.apply.text(lambda r: f'{r["text"]} {r["exp_terms"]}') >> index
 index_pipeline.index(dataset.get_corpus_iter())
+```
+
+**Can I build a learned sparse retrieval (e.g., SPLADE) index?**
+
+Yes! Example:
+
+```python
+import pyt_splade
+splade = pyt_splade.Splade()
+dataset = pt.get_dataset('irds:msmarco-passage')
+index = PisaIndex('./msmarco-passage-splade', stemmer='none')
+
+# indexing
+idx_pipeline = splade.doc_encoder() >> index.toks_indexer()
+idx_pipeline.index(dataset.get_corpus_iter())
+
+# retrieval
+retr_pipeline = splade.query_encoder() >> index.quantized()
 ```
 
 **What are the supported index encodings and query algorithms?**
