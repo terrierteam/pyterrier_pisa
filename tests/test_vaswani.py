@@ -22,3 +22,7 @@ class VaswaniTest(TempDirTestCase):
         )
         self.assertListEqual(MAPS, exp_df["map"].tolist())
         
+
+if __name__ == "__main__":
+    import unittest
+    unittest.main()

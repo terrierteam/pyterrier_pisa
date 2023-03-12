@@ -7,7 +7,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: ['3.7', '3.8']
+        python-version: ['3.7', '3.8', '3.9', '3.10']
         name: [ubuntu-gcc-9]
         java: [13]
         architecture: ['x64']
@@ -45,6 +45,7 @@ jobs:
         python setup.py bdist_wheel
         python patcher.py dist/
         pip install dist/*.whl
+        pip install -r requirements-test.txt
 
     - uses: actions/upload-artifact@v2
       with:

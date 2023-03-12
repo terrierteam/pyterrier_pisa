@@ -28,14 +28,12 @@ index = PisaIndex('./msmarco-passage-pisa')
 index.index(dataset.get_corpus_iter())
 ```
 
-Since PISA does not support multiple fields, you will need to have all the text you want to index in a single field. By default, it uses the "text" field, but this can be overridden with `text_field`.
+You can also select which text field(s) to index. If not specified, all fields of type `str` will be indexed.
 
 ```python
 dataset = pt.get_dataset('irds:cord19')
-index = PisaIndex('./cord19-pisa', text_field='title_and_abstract')
-# create a new field called title_and_abstract, from the title and abstract text
-index_pipeline = pt.apply.title_and_abstract(lambda r: f'{r["title"]} {r["abstract"]}') >> index
-index_pipeline.index(dataset.get_corpus_iter())
+index = PisaIndex('./cord19-pisa', text_field=['title', 'abstract'])
+index.index(dataset.get_corpus_iter())
 ```
 
 `PisaIndex` accepts various other options to configure the indexing process. Most notable are:
@@ -173,6 +171,33 @@ index = PisaIndex('./vaswani-doc2query-pisa')
 index_pipeline = doc2query >> pt.apply.text(lambda r: f'{r["text"]} {r["exp_terms"]}') >> index
 index_pipeline.index(dataset.get_corpus_iter())
 ```
+
+**Can I build a learned sparse retrieval (e.g., SPLADE) index?**
+
+Yes! Example:
+
+```python
+import pyt_splade
+splade = pyt_splade.Splade()
+dataset = pt.get_dataset('irds:msmarco-passage')
+index = PisaIndex('./msmarco-passage-splade', stemmer='none')
+
+# indexing
+idx_pipeline = splade.doc_encoder() >> index.toks_indexer()
+idx_pipeline.index(dataset.get_corpus_iter())
+
+# retrieval
+
+retr_pipeline = splade.query_encoder() >> index.quantized()
+```
+
+`msmarco-passage/trec-dl-2019` effectiveness for `naver/splade-cocondenser-ensembledistil`:
+
+| System | nDCG@10 | R(rel=2)@1000 |
+|--------|---------|---------------|
+| PISA   | 0.731   |         0.872 |
+| [From Paper](https://arxiv.org/pdf/2205.04733.pdf) | 0.732 | 0.875 |
+
 
 **What are the supported index encodings and query algorithms?**
 

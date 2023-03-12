@@ -27,7 +27,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="pyterrier_pisa",
-    version="0.0.3" + os.environ.get('PT_PISA_VERSION_SUFFIX', ''),
+    version="0.0.4" + os.environ.get('PT_PISA_VERSION_SUFFIX', ''),
     description="A PyTerrier interface to the PISA search engine",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -39,7 +39,7 @@ setup(
     install_requires=['python-terrier>=0.8.0', 'numpy>=1.21.0'],
     python_requires=">=3.7",
     entry_points={
-        'console_scripts': ['pyterrier_pisa=pyterrier_pisa:main'],
+        'console_scripts': ['pyterrier_pisa=pyterrier_pisa.cli:main'],
     },
     cmdclass={'bdist_wheel': bdist_wheel}
 )
