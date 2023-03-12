@@ -187,8 +187,17 @@ idx_pipeline = splade.doc_encoder() >> index.toks_indexer()
 idx_pipeline.index(dataset.get_corpus_iter())
 
 # retrieval
+
 retr_pipeline = splade.query_encoder() >> index.quantized()
 ```
+
+`msmarco-passage/trec-dl-2019` effectiveness for `naver/splade-cocondenser-ensembledistil`:
+
+| System | nDCG@10 | R(rel=2)@1000 |
+|--------|---------|---------------|
+| PISA   | 0.731   |         0.872 |
+| [From Paper](https://arxiv.org/pdf/2205.04733.pdf) | 0.732 | 0.875 |
+
 
 **What are the supported index encodings and query algorithms?**
 
