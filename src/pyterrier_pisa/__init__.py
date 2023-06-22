@@ -245,7 +245,7 @@ class PisaIndex(pt.Indexer):
 
 
 class PisaRetrieve(pt.Transformer):
-  def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, query_weighted=None, toks_scale=100., **retr_args):
+  def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, query_weighted=None, toks_scale=100., include_latency=False, **retr_args):
     if isinstance(index, PisaIndex):
       self.index = index
     else:
@@ -267,7 +267,20 @@ class PisaRetrieve(pt.Transformer):
     else:
       self.query_weighted = query_weighted
     self.toks_scale = toks_scale
+    self.include_latency = include_latency
+    self._ctxt = _pisathon.RetrievalContext()
     _pisathon.prepare_index(self.index.path, encoding=self.index.index_encoding.value, scorer_name=self.scorer.value, **retr_args)
+    with tempfile.TemporaryDirectory() as d:
+      _pisathon.prepare_index3(self._ctxt,
+        self.index.path,
+        self.index.index_encoding.value,
+        self.query_algorithm.value,
+        self.scorer.value,
+        '' if self.index.stemmer == PisaStemmer.none else self.index.stemmer.value,
+        stop_fname=self._stops_fname(d),
+        query_weighted=1 if self.query_weighted else 0,
+        k=self.num_results,
+        **self.retr_args)
 
   def transform(self, queries):
     assert 'qid' in queries.columns
@@ -286,33 +299,40 @@ class PisaRetrieve(pt.Transformer):
 
     if self.verbose:
       inp = pt.tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
-    with tempfile.TemporaryDirectory() as d:
-      shape = (len(queries) * self.num_results,)
-      result_qidxs = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
-      result_docnos = np.ascontiguousarray(np.empty(shape, dtype=object))
-      result_ranks = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
-      result_scores = np.ascontiguousarray(np.empty(shape, dtype=np.float32))
-      size = _pisathon.retrieve(
-        self.index.path,
-        self.index.index_encoding.value,
-        self.query_algorithm.value,
-        self.scorer.value,
-        '' if self.index.stemmer == PisaStemmer.none else self.index.stemmer.value,
-        inp,
-        k=self.num_results,
-        threads=self.threads,
-        stop_fname=self._stops_fname(d),
-        query_weighted=1 if self.query_weighted else 0,
-        pretokenised=pretok,
-        result_qidxs=result_qidxs,
-        result_docnos=result_docnos,
-        result_ranks=result_ranks,
-        result_scores=result_scores,
-        **self.retr_args)
+    # with tempfile.TemporaryDirectory() as d:
+    shape = (len(queries) * self.num_results,)
+    result_qidxs = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
+    result_docnos = np.ascontiguousarray(np.empty(shape, dtype=object))
+    result_ranks = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
+    result_scores = np.ascontiguousarray(np.empty(shape, dtype=np.float32))
+    kwargs = dict(self.retr_args)
+    if self.include_latency:
+      result_latencies = np.ascontiguousarray(np.empty(len(queries), dtype=np.float32))
+      kwargs['result_latencies'] = result_latencies
+    size = _pisathon.retrieve3(
+      self._ctxt,
+      self.index.path,
+      self.index.index_encoding.value,
+      self.query_algorithm.value,
+      self.scorer.value,
+      '' if self.index.stemmer == PisaStemmer.none else self.index.stemmer.value,
+      inp,
+      k=self.num_results,
+      threads=self.threads,
+      # stop_fname=self._stops_fname(d),
+      query_weighted=1 if self.query_weighted else 0,
+      pretokenised=pretok,
+      result_qidxs=result_qidxs,
+      result_docnos=result_docnos,
+      result_ranks=result_ranks,
+      result_scores=result_scores,
+      **kwargs)
     result = queries.iloc[result_qidxs[:size]].reset_index(drop=True)
     result['docno'] = result_docnos[:size]
     result['score'] = result_scores[:size]
     result['rank'] = result_ranks[:size]
+    if self.include_latency:
+      result['latency'] = result_latencies[result_qidxs[:size]]
     return result
 
   def __repr__(self):
