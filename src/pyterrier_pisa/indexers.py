@@ -38,7 +38,7 @@ class PisaIndexer(pt.Indexer):
         warn(f'Removing {str(path)}')
         shutil.rmtree(path)
       else:
-        raise RuntimeError('A PISA index already exists at {self.path}. If you want to overwrite it, set mode="overwrite"')
+        raise RuntimeError(f'A PISA index already exists at {self.path}. If you want to overwrite it, set mode="overwrite"')
     if not path.exists():
       path.mkdir(parents=True, exist_ok=True)
 
