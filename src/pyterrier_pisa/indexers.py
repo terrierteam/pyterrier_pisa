@@ -24,7 +24,7 @@ class PisaIndexingMode(Enum):
 
 class PisaIndexer(pt.Indexer):
   def __init__(self, path, text_field='text', mode=PisaIndexingMode.create, stemmer='porter2', threads=1, batch_size=100_000):
-    self.path = path
+    self.path = Path(path)
     self.text_field = text_field
     self.mode = PisaIndexingMode(mode)
     self.stemmer = pyterrier_pisa.PisaStemmer(stemmer)
@@ -32,23 +32,26 @@ class PisaIndexer(pt.Indexer):
     self.batch_size = batch_size
 
   def index(self, it):
-    path = Path(self.path)
+    path = self.path
     if pyterrier_pisa.PisaIndex.built(self):
       if PisaIndexingMode(self.mode) == PisaIndexingMode.overwrite:
         warn(f'Removing {str(path)}')
         shutil.rmtree(path)
       else:
-        raise RuntimeError(f'A PISA index already exists at {self.path}. If you want to overwrite it, set mode="overwrite"')
+        raise RuntimeError(f'A PISA index already exists at {path}. If you want to overwrite it, set mode="overwrite"')
     if not path.exists():
       path.mkdir(parents=True, exist_ok=True)
 
     self._index(it)
 
-    with open(path/'pt_pisa_config.json', 'wt') as fout:
+    with open(path/'pt_meta.json', 'wt') as fout:
       json.dump({
+        'type': 'sparse_index',
+        'format': 'pisa',
+        'package_hint': 'pyterrier-pisa',
         'stemmer': self.stemmer.value,
       }, fout)
-    return pyterrier_pisa.PisaIndex(self.path, batch_size=self.batch_size, stemmer=self.stemmer, text_field=self.text_field, threads=self.threads)
+    return pyterrier_pisa.PisaIndex(path, batch_size=self.batch_size, stemmer=self.stemmer, text_field=self.text_field, threads=self.threads)
 
   def _index(self, it):
     with tempfile.TemporaryDirectory() as d:
@@ -76,7 +79,7 @@ class PisaToksIndexer(PisaIndexer):
   def _index(self, it):
     lexicon = {}
     docid = 0
-    path = Path(self.path)
+    path = self.path
     with (path/'fwd.documents').open('wt') as f_docs, (path/'fwd.terms').open('wt') as f_lex:
       for bidx, batch in enumerate(more_itertools.chunked(it, self.batch_size)):
         _logger.info(f'inverting batch {bidx}: documents [{docid},{docid+len(batch)})')
