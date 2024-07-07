@@ -16,6 +16,8 @@ import ir_datasets
 from . import _pisathon
 from .indexers import PisaIndexer, PisaToksIndexer, PisaIndexingMode
 
+__version__ = '0.1.0'
+
 _logger = ir_datasets.log.easy()
 
 class PisaStemmer(Enum):
