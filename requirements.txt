@@ -1,3 +1,4 @@
 python_terrier>=0.9.1
-numpy>=1.21.0
+pyterrier-alpha>=0.2.0
+numpy>=1.21.0, <2.0.0
 pyciff==0.1.1
