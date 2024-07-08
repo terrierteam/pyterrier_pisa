@@ -9,12 +9,16 @@ from warnings import warn
 from typing import Optional, Union, List
 from enum import Enum
 from collections import Counter
+from tqdm import tqdm
 import pyterrier as pt
+import pyterrier_alpha as pta
 from pyterrier.datasets import Dataset
-import functools
 import ir_datasets
 from . import _pisathon
 from .indexers import PisaIndexer, PisaToksIndexer, PisaIndexingMode
+from .stopwords import _STOPWORDS
+
+__version__ = '0.1.0'
 
 _logger = ir_datasets.log.easy()
 
@@ -90,7 +94,7 @@ def log_level(on=True):
   _pisathon.log_level(1 if on else 0)
 
 
-class PisaIndex(pt.Indexer):
+class PisaIndex(pta.Artifact, pt.Indexer):
   def __init__(self,
       path: str,
       text_field: str = None,
@@ -100,14 +104,17 @@ class PisaIndex(pt.Indexer):
       stops: Optional[Union[PisaStopwords, List[str]]] = None,
       threads: int = 8,
       overwrite=False):
-    self.path = path
-    ppath = Path(path)
+    super().__init__(path)
     if stemmer is not None: stemmer = PisaStemmer(stemmer)
     if index_encoding is not None: index_encoding = PisaIndexEncoding(index_encoding)
     if stops is not None and not isinstance(stops, list): stops = PisaStopwords(stops)
-    if (ppath/'pt_pisa_config.json').exists():
-      with (ppath/'pt_pisa_config.json').open('rt') as fin:
-        config = json.load(fin)
+    if (_old_metadata := (self.path/'pt_pisa_config.json').exists()) or (self.path/'pt_meta.json').exists():
+      if _old_metadata:
+        with (self.path/'pt_pisa_config.json').open('rt') as fin:
+          config = json.load(fin)
+      else:
+        with (self.path/'pt_meta.json').open('rt') as fin:
+          config = json.load(fin)
       if stemmer is None:
         stemmer = PisaStemmer(config['stemmer'])
       if stemmer.value != config['stemmer']:
@@ -127,7 +134,7 @@ class PisaIndex(pt.Indexer):
     raise RuntimeError(f'You cannot use {self} itself as a transformer. Did you mean to call a ranking function like .bm25()?')
 
   def built(self):
-    return (Path(self.path)/'pt_pisa_config.json').exists()
+    return (self.path/'pt_meta.json').exists() or (self.path/'pt_pisa_config.json').exists()
 
   def index(self, it):
     it = more_itertools.peekable(it)
@@ -166,17 +173,17 @@ class PisaIndex(pt.Indexer):
 
   def num_terms(self):
     assert self.built()
-    return _pisathon.num_terms(self.path)
+    return _pisathon.num_terms(str(self.path))
 
   def num_docs(self):
     assert self.built()
-    return _pisathon.num_docs(self.path)
+    return _pisathon.num_docs(str(self.path))
 
   def __len__(self):
     return self.num_docs()
 
   def __repr__(self):
-    return f'PisaIndex({repr(self.path)})'
+    return f'PisaIndex({repr(str(self.path))})'
 
   @staticmethod
   def from_dataset(dataset: Union[str, Dataset], variant: str = 'pisa_porter2', version: str = 'latest', **kwargs):
@@ -208,8 +215,11 @@ class PisaIndex(pt.Indexer):
     else:
       # If it wasn't created, create one from the documents file
       _pisathon.build_binlex(str(ppath/'fwd.documents'), str(ppath/'fwd.doclex'))
-    with open(ppath/'pt_pisa_config.json', 'wt') as fout:
+    with open(ppath/'pt_meta.json', 'wt') as fout:
       json.dump({
+        'type': 'sparse_index',
+        'format': 'pisa',
+        'package_hint': 'pyterrier-pisa',
         'stemmer': stemmer.value,
       }, fout)
     return PisaIndex(index_path, stemmer=stemmer)
@@ -217,16 +227,15 @@ class PisaIndex(pt.Indexer):
   def to_ciff(self, ciff_file: str, description: str = 'from pyterrier_pisa'):
     assert self.built()
     import pyciff
-    pyciff.pisa_to_ciff(str(Path(self.path)/'inv'), str(Path(self.path)/'fwd.terms'), str(Path(self.path)/'fwd.documents'), ciff_file, description)
+    pyciff.pisa_to_ciff(str(self.path/'inv'), str(self.path/'fwd.terms'), str(self.path/'fwd.documents'), ciff_file, description)
 
   def get_corpus_iter(self, field='toks', verbose=True):
     assert self.built()
-    ppath = Path(self.path)
-    assert (ppath/'fwd').exists(), "get_corpus_iter requires a fwd index"
-    m = np.memmap(ppath/'fwd', mode='r', dtype=np.uint32)
-    lexicon = [l.strip() for l in (ppath/'fwd.terms').open('rt')]
+    assert (self.path/'fwd').exists(), "get_corpus_iter requires a fwd index"
+    m = np.memmap(self.path/'fwd', mode='r', dtype=np.uint32)
+    lexicon = [l.strip() for l in (self.path/'fwd.terms').open('rt')]
     idx = 2
-    it = iter((ppath/'fwd.documents').open('rt'))
+    it = iter((self.path/'fwd.documents').open('rt'))
     if verbose:
       it = _logger.pbar(it, total=int(m[1]), desc=f'iterating documents in {self}', unit='doc')
     for did in it:
@@ -270,7 +279,7 @@ class PisaRetrieve(pt.Transformer):
     else:
       self.query_weighted = query_weighted
     self.toks_scale = toks_scale
-    _pisathon.prepare_index(self.index.path, encoding=self.index.index_encoding.value, scorer_name=self.scorer.value, **retr_args)
+    _pisathon.prepare_index(str(self.index.path), encoding=self.index.index_encoding.value, scorer_name=self.scorer.value, **retr_args)
 
   def transform(self, queries):
     assert 'qid' in queries.columns
@@ -288,7 +297,7 @@ class PisaRetrieve(pt.Transformer):
       inp.extend(enumerate(queries['query']))
 
     if self.verbose:
-      inp = pt.tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
+      inp = tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
     with tempfile.TemporaryDirectory() as d:
       shape = (len(queries) * self.num_results,)
       result_qidxs = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
@@ -296,7 +305,7 @@ class PisaRetrieve(pt.Transformer):
       result_ranks = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
       result_scores = np.ascontiguousarray(np.empty(shape, dtype=np.float32))
       size = _pisathon.retrieve(
-        self.index.path,
+        str(self.index.path),
         self.index.index_encoding.value,
         self.query_algorithm.value,
         self.scorer.value,
@@ -329,28 +338,21 @@ class PisaRetrieve(pt.Transformer):
   def _stops_fname(self, d):
     if self.stops == PisaStopwords.none:
       return ''
-    else:
-      fifo = os.path.join(d, 'stops')
-      stops = self.stops
-      if stops == PisaStopwords.terrier:
-        stops = _terrier_stops()
-      with open(fifo, 'wt') as fout:
-        for stop in stops:
-          fout.write(f'{stop}\n')
-      return fifo
+
+    fifo = os.path.join(d, 'stops')
+    stops = self.stops
+    if stops == PisaStopwords.terrier:
+      stops = _STOPWORDS['terrier']
+    with open(fifo, 'wt') as fout:
+      for stop in stops:
+        fout.write(f'{stop}\n')
+    return fifo
 
 
 def tokenize(text: str, stemmer: PisaStemmer = PisaStemmer.none) -> str:
   stemmer = PisaStemmer(stemmer)
   stemmer = '' if stemmer == PisaStemmer.none else stemmer.value
   return _pisathon.tokenize(text, stemmer)
-
-
-@functools.lru_cache()
-def _terrier_stops():
-  Stopwords = pt.autoclass('org.terrier.terms.Stopwords')
-  stops = list(Stopwords(None).stopWords)
-  return stops
 
 
 class DictTokeniser(pt.Transformer):
