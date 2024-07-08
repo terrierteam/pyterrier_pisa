@@ -119,6 +119,18 @@ bm25 = PisaRetrieve('./cord19-pisa', scorer='bm25', bm25_k1=1.2, bm25_b=0.4)
 bm25 = PisaRetrieve.from_dataset('trec-covid', 'pisa_unstemmed', scorer='bm25', bm25_k1=1.2, bm25_b=0.4)
 ```
 
+## Extras
+
+You can access PISA's tokenizer and stemmers using the `tokenize` function:
+
+```python
+import pyterrier_pisa
+pyterrier_pisa.tokenize('hello worlds!')
+# ['hello', 'worlds']
+pyterrier_pisa.tokenize('hello worlds!', stemmer='porter2')
+# ['hello', 'world']
+```
+
 ## FAQ
 
 **What retrieval functions are supported?**
