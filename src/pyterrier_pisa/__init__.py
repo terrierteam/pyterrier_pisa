@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 import json
 import sys
@@ -349,7 +350,7 @@ class PisaRetrieve(pt.Transformer):
     return fifo
 
 
-def tokenize(text: str, stemmer: PisaStemmer = PisaStemmer.none) -> str:
+def tokenize(text: str, stemmer: PisaStemmer = PisaStemmer.none) -> List[str]:
   stemmer = PisaStemmer(stemmer)
   stemmer = '' if stemmer == PisaStemmer.none else stemmer.value
   return _pisathon.tokenize(text, stemmer)
