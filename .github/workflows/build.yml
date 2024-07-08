@@ -35,8 +35,8 @@ jobs:
         CIBW_BEFORE_BUILD: "python -m pip install numpy setuptools scikit-build ninja cmake -v"
         CIBW_BUILD_VERBOSITY: '1'
         CIBW_ARCHS_LINUX: "x86_64"
-        # Only supports cpython 3.8 - 3.10 on manylinux_x86_64
-        CIBW_BUILD: 'cp38-manylinux_x86_64 cp39-manylinux_x86_64 cp310-manylinux_x86_64'
+        # Only supports cpython 3.8 - 3.11 on manylinux_x86_64
+        CIBW_BUILD: 'cp38-manylinux_x86_64 cp39-manylinux_x86_64 cp310-manylinux_x86_64 cp311-manylinux_x86_64'
         CIBW_REPAIR_WHEEL_COMMAND: 'auditwheel repair -w {dest_dir} {wheel} ; python patcher.py {dest_dir}'
         CIBW_ENVIRONMENT: 'PT_PISA_VERSION_SUFFIX="${{github.event.inputs.version_suffix}}" PT_PISA_MANYLINUX="True"'
     - name: upload Test
