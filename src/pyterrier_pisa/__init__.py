@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 import json
 import sys
@@ -252,6 +253,9 @@ class PisaIndex(pta.Artifact, pt.Indexer):
       raise ValueError("To index from dicts, you must set stemmer='none'")
     return PisaToksIndexer(self.path, text_field or self.text_field or 'toks', mode, threads=threads or self.threads, batch_size=self.batch_size, scale=scale)
 
+  def tokenize(self, text):
+    return tokenize(text, self.stemmer)
+
 
 class PisaRetrieve(pt.Transformer):
   def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, query_weighted=None, toks_scale=100., **retr_args):
@@ -344,6 +348,12 @@ class PisaRetrieve(pt.Transformer):
       for stop in stops:
         fout.write(f'{stop}\n')
     return fifo
+
+
+def tokenize(text: str, stemmer: PisaStemmer = PisaStemmer.none) -> List[str]:
+  stemmer = PisaStemmer(stemmer)
+  stemmer = '' if stemmer == PisaStemmer.none else stemmer.value
+  return _pisathon.tokenize(text, stemmer)
 
 
 class DictTokeniser(pt.Transformer):
