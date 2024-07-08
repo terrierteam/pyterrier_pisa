@@ -12,10 +12,10 @@ from collections import Counter
 import pyterrier as pt
 import pyterrier_alpha as pta
 from pyterrier.datasets import Dataset
-import functools
 import ir_datasets
 from . import _pisathon
 from .indexers import PisaIndexer, PisaToksIndexer, PisaIndexingMode
+from .stopwords import _STOPWORDS
 
 __version__ = '0.1.0'
 
@@ -334,22 +334,15 @@ class PisaRetrieve(pt.Transformer):
   def _stops_fname(self, d):
     if self.stops == PisaStopwords.none:
       return ''
-    else:
-      fifo = os.path.join(d, 'stops')
-      stops = self.stops
-      if stops == PisaStopwords.terrier:
-        stops = _terrier_stops()
-      with open(fifo, 'wt') as fout:
-        for stop in stops:
-          fout.write(f'{stop}\n')
-      return fifo
 
-
-@functools.lru_cache()
-def _terrier_stops():
-  Stopwords = pt.autoclass('org.terrier.terms.Stopwords')
-  stops = list(Stopwords(None).stopWords)
-  return stops
+    fifo = os.path.join(d, 'stops')
+    stops = self.stops
+    if stops == PisaStopwords.terrier:
+      stops = _STOPWORDS['terrier']
+    with open(fifo, 'wt') as fout:
+      for stop in stops:
+        fout.write(f'{stop}\n')
+    return fifo
 
 
 class DictTokeniser(pt.Transformer):
