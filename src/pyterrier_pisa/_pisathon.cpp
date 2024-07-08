@@ -1228,6 +1228,28 @@ static PyObject *py_log_level(PyObject *self, PyObject *args, PyObject *kwargs) 
   Py_RETURN_NONE;
 }
 
+static PyObject *py_tokenize(PyObject *self, PyObject *args, PyObject *kwargs) {
+  const char* stemmer;
+  const char* text;
+
+  /* Parse arguments */
+  if(!PyArg_ParseTuple(args, "ss", &text, &stemmer)) {
+      return NULL;
+  }
+
+  std::optional<std::string> stemmer_inp = std::nullopt;
+  if (stemmer[0]) {
+    stemmer_inp = stemmer;
+  }
+  auto py_toks = PyList_New(0);
+  auto stem = pisa::term_transformer_builder(stemmer_inp)();
+  pisa::parse_plaintext_content(text, [py_toks, stem](std::string&& inp) {
+    PyList_Append(py_toks, PyUnicode_FromString(stem(inp).c_str()));
+  });
+
+  return py_toks;
+}
+
 
 static PyMethodDef pisathon_methods[] = {
   {"index", py_index, METH_VARARGS, "index"},
@@ -1242,6 +1264,7 @@ static PyMethodDef pisathon_methods[] = {
   {"num_docs", (PyCFunction)py_num_docs, METH_VARARGS, "num_docs"},
   {"log_level", (PyCFunction)py_log_level, METH_VARARGS, "log_level"},
   {"build_binlex", (PyCFunction)py_build_binlex, METH_VARARGS, "build_binlex"},
+  {"tokenize", (PyCFunction)py_tokenize, METH_VARARGS, "tokenize"},
   {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 

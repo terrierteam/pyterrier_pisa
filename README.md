@@ -6,7 +6,7 @@ Interactive Colab Demo: [![Open In Colab](https://colab.research.google.com/asse
 
 ## Getting Started
 
-These bindings are only available for cpython 3.7-3.8 on `manylinux2010_x86_64` platforms. They can be installed via pip:
+These bindings are only available for cpython 3.8-3.11 on `manylinux2010_x86_64` platforms. They can be installed via pip:
 
 ```bash
 pip install pyterrier_pisa
@@ -117,6 +117,18 @@ from pyterrier_pisa import PisaRetrieve
 bm25 = PisaRetrieve('./cord19-pisa', scorer='bm25', bm25_k1=1.2, bm25_b=0.4)
 # from dataset
 bm25 = PisaRetrieve.from_dataset('trec-covid', 'pisa_unstemmed', scorer='bm25', bm25_k1=1.2, bm25_b=0.4)
+```
+
+## Extras
+
+You can access PISA's tokenizer and stemmers using the `tokenize` function:
+
+```python
+import pyterrier_pisa
+pyterrier_pisa.tokenize('hello worlds!')
+# ['hello', 'worlds']
+pyterrier_pisa.tokenize('hello worlds!', stemmer='porter2')
+# ['hello', 'world']
 ```
 
 ## FAQ
