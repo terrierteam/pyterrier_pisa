@@ -282,7 +282,7 @@ class PisaRetrieve(pt.Transformer):
     self.toks_scale = toks_scale
     self.include_latency = include_latency
     self._ctxt = _pisathon.RetrievalContext()
-    _pisathon.prepare_index(self.index.path, encoding=self.index.index_encoding.value, scorer_name=self.scorer.value, **retr_args)
+    _pisathon.prepare_index(str(self.index.path), encoding=self.index.index_encoding.value, scorer_name=self.scorer.value, **retr_args)
     with tempfile.TemporaryDirectory() as d:
       _pisathon.prepare_index3(self._ctxt,
         str(self.index.path),
@@ -324,7 +324,7 @@ class PisaRetrieve(pt.Transformer):
       kwargs['result_latencies'] = result_latencies
     size = _pisathon.retrieve3(
       self._ctxt,
-      self.index.path,
+      str(self.index.path),
       self.index.index_encoding.value,
       self.query_algorithm.value,
       self.scorer.value,
