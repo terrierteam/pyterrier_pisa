@@ -27,7 +27,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="pyterrier_pisa",
-    version="0.1.0" + os.environ.get('PT_PISA_VERSION_SUFFIX', ''),
+    version="0.1.1" + os.environ.get('PT_PISA_VERSION_SUFFIX', ''),
     description="A PyTerrier interface to the PISA search engine",
     long_description=long_description,
     long_description_content_type="text/markdown",
