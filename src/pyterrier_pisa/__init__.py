@@ -9,6 +9,7 @@ from warnings import warn
 from typing import Optional, Union, List
 from enum import Enum
 from collections import Counter
+from tqdm import tqdm
 import pyterrier as pt
 import pyterrier_alpha as pta
 from pyterrier.datasets import Dataset
@@ -293,7 +294,7 @@ class PisaRetrieve(pt.Transformer):
       inp.extend(enumerate(queries['query']))
 
     if self.verbose:
-      inp = pt.tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
+      inp = tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
     with tempfile.TemporaryDirectory() as d:
       shape = (len(queries) * self.num_results,)
       result_qidxs = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
