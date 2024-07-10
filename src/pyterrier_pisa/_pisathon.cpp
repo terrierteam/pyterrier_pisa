@@ -79,7 +79,7 @@ typedef struct {
     std::shared_ptr<mio::mmap_source> docmap_source = NULL;
     std::shared_ptr<TermProcessor> term_processor = NULL;
     wand_data<wand_data_raw>* wdata = NULL;
-    std::string encoding = NULL;
+    std::string* encoding = NULL;
 } RetrievalContext;
 
 static PyObject* RetrievalContext_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
@@ -89,7 +89,7 @@ static PyObject* RetrievalContext_new(PyTypeObject* type, PyObject* args, PyObje
 static void RetrievalContext_dealloc(RetrievalContext* self) {
 
   if (self->index != NULL) {
-    const char* encoding = self->encoding.c_str();
+    const char* encoding = self->encoding->c_str();
     /**/
     if (false) {  // NOLINT
   #define LOOP_BODY(R, DATA, T)                                                                    \
@@ -616,27 +616,23 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
 
 static PyObject *py_prepare_index3(PyObject *self, PyObject *args, PyObject *kwargs) {
   RetrievalContext* ctxt;
-  auto start = std::chrono::high_resolution_clock::now();
   const char* index_dir;
   const char* encoding;
-  const char* algorithm;
   const char* stemmer;
   const char* scorer_name;
   const char* stop_fname = "";
-  int pretoks = 0;
   unsigned long long block_size = 64;
   unsigned int in_quantize = 0;
   float bm25_k1 = -100;
   float bm25_b = -100;
   float pl2_c = -100;
   float qld_mu = -100;
-  unsigned int threads = 1;
 
   /* Parse arguments */
   // Refer to the documentation for the kwarg type (character) definitions: https://docs.python.org/3/c-api/arg.html
   // Most notably: s: string, O: PyObject, K: unsigned long long, I: unsigned int, f: float, w*: Py_buffer
   static const char *kwlist[] = {"context", "index_dir", "encoding", "scorer_name", "stemmer", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "stop_fname", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Ossss|KIffffsiI", const_cast<char **>(kwlist),
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Ossss|KIffffs", const_cast<char **>(kwlist),
                                      &ctxt, &index_dir, &encoding, &scorer_name, &stemmer, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &stop_fname))
   {
       return NULL;
@@ -656,7 +652,7 @@ static PyObject *py_prepare_index3(PyObject *self, PyObject *args, PyObject *kwa
 
   ctxt->term_processor = std::make_shared<TermProcessor>(TermProcessor((f_index_dir/"fwd.termlex").string(), stop_inp, stemmer_inp));
 
-  ctxt->encoding = std::string(encoding);
+  ctxt->encoding = new std::string(encoding);
 
   bool quantize = in_quantize != 0;
   auto scorer = ScorerParams(scorer_name);
