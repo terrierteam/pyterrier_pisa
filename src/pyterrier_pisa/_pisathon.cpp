@@ -76,10 +76,9 @@ static PyTypeObject RetrievalContextType;
 typedef struct {
     PyObject_HEAD
     void* index = NULL;
-    TermProcessor* term_processor = NULL;
     std::shared_ptr<mio::mmap_source> docmap_source = NULL;
+    std::shared_ptr<TermProcessor> term_processor = NULL;
     wand_data<wand_data_raw>* wdata = NULL;
-    ScorerParams* scorer_args = NULL;
 } RetrievalContext;
 
 static PyObject* RetrievalContext_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
@@ -119,10 +118,6 @@ static void RetrievalContext_dealloc(RetrievalContext* self) {
 //     self->wdata = NULL;
 //   }
 }
-
-// static void print_context(RetrievalContext* self) {
-//   printf("index=%p term_processor=%p docmap_source=%p wdata=%p\n", self->index, self->term_processor, self->docmap_source, self->wdata);
-// }
 
 static PyObject *py_index(PyObject *self, PyObject *args) {
   const char* fin;
@@ -375,95 +370,6 @@ static std::function<std::vector<typename topk_queue::entry_type>(Query)> get_qu
   return query_fun;
 }
 
-/*
-static PyObject *py_prepare_index2(PyObject *self, PyObject *args, PyObject *kwargs) {
-  RetrievalContext* ctxt;
-  const char* index_dir;
-  const char* encoding;
-  const char* algorithm;
-  const char* stemmer;
-  const char* scorer_name;
-  const char* stop_fname = "";
-  unsigned long long block_size = 64;
-  unsigned int k = 1000;
-  unsigned int in_quantize = 0;
-  unsigned int in_weighted = 0;
-  float bm25_k1 = -100;
-  float bm25_b = -100;
-  float pl2_c = -100;
-  float qld_mu = -100;
-
-  // Refer to the documentation for the kwarg type (character) definitions: https://docs.python.org/3/c-api/arg.html
-  // Most notably: s: string, O: PyObject, K: unsigned long long, I: unsigned int, f: float, w*: Py_buffer
-  static const char *kwlist[] = {"context", "index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "stop_fname", "query_weighted", "k", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Osssss|KIffffsiI", const_cast<char **>(kwlist),
-                                     &ctxt, &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &stop_fname, &in_weighted, &k))
-  {
-      return NULL;
-  }
-
-  fs::path f_index_dir (index_dir);
-
-  std::optional<std::string> stemmer_inp = std::nullopt;
-  if (stemmer[0]) {
-    stemmer_inp = stemmer;
-  }
-
-  std::optional<std::string> stop_inp = std::nullopt;
-  if (stop_fname[0]) {
-    stop_inp = stop_fname;
-  }
-
-  ctxt->term_processor = new TermProcessor((f_index_dir/"fwd.termlex").string(), stop_inp, stemmer_inp);
-
-  bool quantize = in_quantize != 0;
-  ctxt->scorer_args = new ScorerParams(scorer_name);
-  auto scorer = ctxt->scorer_args;
-  if (bm25_k1 != -100) scorer.bm25_k1 = bm25_k1;
-  if (bm25_b  != -100) scorer.bm25_b  = bm25_b;
-  if (pl2_c   != -100) scorer.pl2_c   = pl2_c;
-  if (qld_mu  != -100) scorer.qld_mu  = qld_mu;
-
-  std::string scorer_fmt;
-       if (scorer.name == "bm25")      { scorer_fmt = fmt::format("{}.k1-{}.b-{}", scorer.name, scorer.bm25_k1, scorer.bm25_b); }
-  else if (scorer.name == "pl2")       { scorer_fmt = fmt::format("{}.c-{}", scorer.name, scorer.pl2_c); }
-  else if (scorer.name == "qld")       { scorer_fmt = fmt::format("{}.mu-{}", scorer.name, scorer.qld_mu); }
-  else if (scorer.name == "dph")       { scorer_fmt = scorer.name; }
-  else if (scorer.name == "quantized") { scorer_fmt = scorer.name; }
-  else return NULL;
-
-  auto wand_path = f_index_dir/fmt::format("{}.q{:d}.bmw.{:d}", scorer_fmt, quantize, block_size);
-  auto index_path = (fmt::format("{}.{}", wand_path.string(), encoding));
-
-  auto documents_path = f_index_dir/"fwd.doclex";
-
-  wand_data<wand_data_raw>* wdata = new wand_data<wand_data_raw>(MemorySource::mapped_file(wand_path.string()));
-  ctxt->wdata = wdata;
-  auto scorerf = scorer::from_params(scorer, *wdata);
-  bool weighted = in_weighted == 1;
-
-  if (false) {  // NOLINT
-#define LOOP_BODY(R, DATA, T)                                                                    \
-  }                                                                                              \
-  else if (strcmp(encoding, BOOST_PP_STRINGIZE(T)) == 0)                                         \
-  {                                                                                              \
-    ctxt->index = new BOOST_PP_CAT(T, _index)(MemorySource::mapped_file(index_path));                  \
-    ctxt->query_fun = get_query_processor2<BOOST_PP_CAT(T, _index)>((BOOST_PP_CAT(T, _index)*)ctxt->index, wdata, algorithm, k, scorerf, weighted); \
-
-    BOOST_PP_SEQ_FOR_EACH(LOOP_BODY, _, PISA_INDEX_TYPES);
-#undef LOOP_BODY
-  } else {
-    spdlog::error("Unknown type {}", encoding);
-  }
-
-  auto source = std::make_shared<mio::mmap_source>(documents_path.string().c_str());
-  ctxt->docmap = Payload_Vector<>::from(*source);
-
-  print_context(ctxt);
-
-  Py_RETURN_NONE;
-}
-*/
 
 static PyObject *py_build_binlex(PyObject *self, PyObject *args, PyObject *kwargs) {
   const char* term_file;
@@ -715,193 +621,6 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   return result;
 }
 
-/*
-static PyObject *py_retrieve2(PyObject *self, PyObject *args, PyObject *kwargs) {
-  RetrievalContext* ctxt;
-  PyObject* in_queries;
-  unsigned int k = 1000;
-  unsigned int threads = 1;
-  int pretoks = 0;
-
-  Py_buffer result_qidxs;
-  Py_buffer result_docnos;
-  Py_buffer result_ranks;
-  Py_buffer result_scores;
-
-  // Refer to the documentation for the kwarg type (character) definitions: https://docs.python.org/3/c-api/arg.html
-  // Most notably: s: string, O: PyObject, I: unsigned int, w*: Py_buffer
-  static const char *kwlist[] = {"context", "queries", "k", "threads", "pretoks", "result_qidxs", "result_docnos", "result_ranks", "result_scores", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OOIIiw*w*w*w*", const_cast<char **>(kwlist),
-                                     &ctxt, &in_queries, &k, &threads, &pretoks, &result_qidxs, &result_docnos, &result_ranks, &result_scores))
-  {
-      return NULL;
-  }
-
-  print_context(ctxt);
-
-  auto in_queries_len = PyObject_Length(in_queries);
-  if (in_queries_len == -1) {
-    PyErr_SetString(PyExc_TypeError, "queries must provide __len__");
-    return NULL;
-  }
-
-  printf("1\n");
-
-  int32_t *qidxs = (int32_t*)result_qidxs.buf;
-  PyObject **docnos = (PyObject**)result_docnos.buf;
-  int32_t *ranks = (int32_t*)result_ranks.buf;
-  float_t *scores = (float_t*)result_scores.buf;
-  printf("2\n");
-
-  auto iter = PyObject_GetIter(in_queries);
-  tbb::spin_mutex mutex;
-  size_t arr_idx = 0;
-  auto query_fun = ctxt->query_fun;
-  auto term_processor = *(ctxt->term_processor);
-  auto docmap = ctxt->docmap;
-  printf("3\n");
-
-  auto scorerf = scorer::from_params(ctxt->scorer_args, *wdata);
-  bool weighted = in_weighted == 1;
-
-  if (false) {  // NOLINT
-#define LOOP_BODY(R, DATA, T)                                                                    \
-  }                                                                                              \
-  else if (strcmp(encoding, BOOST_PP_STRINGIZE(T)) == 0)                                         \
-  {                                                                                              \
-    query_fun = get_query_processor2<BOOST_PP_CAT(T, _index)>((BOOST_PP_CAT(T, _index)*)ctxt->index, wdata, algorithm, k, scorerf, weighted); \
-
-    BOOST_PP_SEQ_FOR_EACH(LOOP_BODY, _, PISA_INDEX_TYPES);
-#undef LOOP_BODY
-  } else {
-    spdlog::error("Unknown type {}", encoding);
-  }
-
-  auto run = [&, query_fun](size_t thread_idx) {
-        printf("3.1\n");
-        PyObject* res;
-        int qidx;
-        const char* qtext;
-        mutex.lock();
-        auto docnos_tmp = new std::string[k];
-        printf("3.2\n");
-        while (1) {
-          if (PyErr_CheckSignals() != 0) {
-            break;
-          }
-          res = PyIter_Next(iter);
-          if (res == NULL) {
-            break;
-          }
-          Query query;
-          std::vector<term_id_type> parsed_query;
-          printf("3.3\n");
-          if (pretoks) {
-            PyObject* qtermsdict;
-            // tuple of string and dictiorary, where each entry contains a term and float weight
-            PyArg_ParseTuple(res, "iO", &qidx, &qtermsdict);
-            PyObject *termKey, *weightValue;
-            Py_ssize_t pos = 0;
-            while (PyDict_Next(qtermsdict, &pos, &termKey, &weightValue)) {
-              // term
-              const char* term_string = PyUnicode_AsUTF8(termKey);
-              if (term_string == NULL && PyErr_Occurred()) {
-                PyErr_SetString(PyExc_TypeError, "token string could not be parsed");
-                break;
-              }
-              //we assume that stemming and stopwords are disabled here
-              //and hence term_processor is a basic one.
-              auto term = term_processor(term_string);
-              if (term) {
-                // weight
-                double weight = PyFloat_AS_DOUBLE(weightValue);
-                if (weight == -1.0 && PyErr_Occurred()) {
-                  PyErr_SetString(PyExc_TypeError, "tok weights must be double");
-                  break;
-                }
-                // Doesn't look like PISA uses the query_weights for anything; instead, we gotta repeat the query terms
-                for (int i=1; i<=weight; i++) {
-                  parsed_query.push_back(*term);
-                }
-              }
-            }
-            query = {"", std::move(parsed_query), {}};
-
-          } else {
-            PyArg_ParseTuple(res, "is", &qidx, &qtext);
-            auto tokenstream = EnglishTokenizer().tokenize(qtext);
-            std::vector<term_id_type> parsed_query;
-            for (auto term_iter = tokenstream->begin(); term_iter != tokenstream->end(); ++term_iter) {
-              auto raw_term = *term_iter;
-              auto term = term_processor(raw_term);
-              if (term && !term_processor.is_stopword(*term)) parsed_query.push_back(*term);
-            }
-            query = {"", std::move(parsed_query), {}};
-          }
-          Py_DECREF(res);
-
-          mutex.unlock();
-          printf("3.4\n");
-          auto query_res = query_fun(query);
-          printf("3.5\n");
-          // Stabilise the sort by sorting on score (desc), then docid (asc). See <https://github.com/pisa-engine/pisa/issues/508>
-          std::sort(query_res.begin(), query_res.end(), [](auto a, auto b) {
-            return a.first == b.first ? a.second < b.second : a.first > b.first;
-          });
-          mutex.lock();
-          auto count = query_res.size();
-          size_t start = arr_idx;
-          size_t i = 0;
-          arr_idx += count;
-          mutex.unlock();
-          printf("3.6\n");
-          for (auto r: query_res) {
-            docnos_tmp[i] = docmap[r.second];
-            qidxs[start+i] = qidx;
-            ranks[start+i] = i;
-            scores[start+i] = r.first;
-            i++;
-          }
-          mutex.lock();
-          printf("3.7\n");
-          for (int i=0; i<count; ++i) {
-            auto docno = PyUnicode_FromStringAndSize(docnos_tmp[i].data(), docnos_tmp[i].length());
-            docnos[start+i] = docno; // takes ownership, shouldn't decref
-          }
-          printf("3.8\n");
-        }
-      mutex.unlock();
-      delete [] docnos_tmp;
-  };
-
-  if (threads == 1) {
-    run(0); // no need to start up extra threads
-  }
-  else {
-    tbb::parallel_for(size_t(0), size_t(threads), run);
-  }
-  printf("4\n");
-
-  Py_DECREF(iter);
-  if (PyErr_CheckSignals() != 0) {
-    return NULL;
-  }
-
-  PyBuffer_Release(&result_qidxs);
-  PyBuffer_Release(&result_docnos);
-  PyBuffer_Release(&result_ranks);
-  PyBuffer_Release(&result_scores);
-  PyObject *result = PyLong_FromLong(arr_idx);
-  printf("5\n");
-
-  if (PyErr_CheckSignals() != 0) {
-    return NULL;
-  }
-
-  return result;
-}
-*/
-
 
 static PyObject *py_prepare_index3(PyObject *self, PyObject *args, PyObject *kwargs) {
   RetrievalContext* ctxt;
@@ -945,7 +664,7 @@ static PyObject *py_prepare_index3(PyObject *self, PyObject *args, PyObject *kwa
     stop_inp = stop_fname;
   }
 
-  ctxt->term_processor = new TermProcessor((f_index_dir/"fwd.termlex").string(), stop_inp, stemmer_inp);
+  ctxt->term_processor = std::make_shared<TermProcessor>(TermProcessor((f_index_dir/"fwd.termlex").string(), stop_inp, stemmer_inp));
 
   bool quantize = in_quantize != 0;
   auto scorer = ScorerParams(scorer_name);
@@ -967,8 +686,13 @@ static PyObject *py_prepare_index3(PyObject *self, PyObject *args, PyObject *kwa
 
   auto documents_path = f_index_dir/"fwd.doclex";
 
+  // auto wdata_source = std::make_shared<mio::mmap_source>(wand_path.string());
+  // ctxt->wdata_source = std::make_shared<mio::mmap_source>(wand_path.string());
   auto wdata = new wand_data<wand_data_raw>(MemorySource::mapped_file(wand_path.string()));
   ctxt->wdata = wdata;
+
+  auto scorerf = scorer::from_params(scorer, *wdata);
+  bool weighted = in_weighted == 1;
 
   /**/
   if (false) {  // NOLINT
@@ -976,23 +700,21 @@ static PyObject *py_prepare_index3(PyObject *self, PyObject *args, PyObject *kwa
   }                                                                                              \
   else if (strcmp(encoding, BOOST_PP_STRINGIZE(T)) == 0)                                         \
   {                                                                                              \
-    ctxt->index = new BOOST_PP_CAT(T, _index)(MemorySource::mapped_file(index_path));                  \
-
+    ctxt->index = new BOOST_PP_CAT(T, _index)(MemorySource::mapped_file(index_path));            \
+  /**/
     BOOST_PP_SEQ_FOR_EACH(LOOP_BODY, _, PISA_INDEX_TYPES);
 #undef LOOP_BODY
   } else {
-    spdlog::error("Unknown type {}", encoding);
+    spdlog::error("(prepare_index) Unknown type {}", encoding);
   }
 
   ctxt->docmap_source = std::make_shared<mio::mmap_source>(documents_path.string().c_str());
-
-  // print_context(ctxt);
 
   Py_RETURN_NONE;
 }
 
 
-static PyObject *py_retrieve3(PyObject *self, PyObject *args, PyObject *kwargs) {
+static PyObject *py_retrieve4(PyObject *self, PyObject *args, PyObject *kwargs) {
   RetrievalContext* ctxt;
   const char* index_dir;
   const char* encoding;
@@ -1016,17 +738,17 @@ static PyObject *py_retrieve3(PyObject *self, PyObject *args, PyObject *kwargs) 
   Py_buffer result_docnos;
   Py_buffer result_ranks;
   Py_buffer result_scores;
-  Py_buffer result_latencies;
 
   /* Parse arguments */
   // Refer to the documentation for the kwarg type (character) definitions: https://docs.python.org/3/c-api/arg.html
   // Most notably: s: string, O: PyObject, K: unsigned long long, I: unsigned int, f: float, w*: Py_buffer
-  static const char *kwlist[] = {"context", "index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", "pretokenised", "query_weighted", "result_qidxs", "result_docnos", "result_ranks", "result_scores", "result_latencies", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OsssssO|KIffffIsIiiw*w*w*w*w*", const_cast<char **>(kwlist),
-                                     &ctxt, &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &in_queries, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &k, &stop_fname, &threads, &pretoks, &in_weighted, &result_qidxs, &result_docnos, &result_ranks, &result_scores, &result_latencies))
+  static const char *kwlist[] = {"context", "index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", "pretokenised", "query_weighted", "result_qidxs", "result_docnos", "result_ranks", "result_scores", NULL};
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OsssssO|KIffffIsIiiw*w*w*w*", const_cast<char **>(kwlist),
+                                     &ctxt, &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &in_queries, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &k, &stop_fname, &threads, &pretoks, &in_weighted, &result_qidxs, &result_docnos, &result_ranks, &result_scores))
   {
       return NULL;
   }
+
 
   auto in_queries_len = PyObject_Length(in_queries);
   if (in_queries_len == -1) {
@@ -1053,25 +775,23 @@ static PyObject *py_retrieve3(PyObject *self, PyObject *args, PyObject *kwargs) 
   else if (scorer.name == "quantized") scorer_fmt = scorer.name;
   else return NULL;
 
-  std::function<std::vector<typename topk_queue::entry_type>(Query)> query_fun = NULL;
-  auto wdata = ctxt->wdata;
-  auto scorerf = scorer::from_params(scorer, *wdata);
+  auto scorerf = scorer::from_params(scorer, *ctxt->wdata);
   bool weighted = in_weighted == 1;
 
-  /**/
+  std::function<std::vector<typename topk_queue::entry_type>(Query)> query_fun = NULL;
   if (false) {  // NOLINT
 #define LOOP_BODY(R, DATA, T)                                                                    \
   }                                                                                              \
   else if (strcmp(encoding, BOOST_PP_STRINGIZE(T)) == 0)                                         \
   {                                                                                              \
-    query_fun = get_query_processor<BOOST_PP_CAT(T, _index)>((BOOST_PP_CAT(T, _index)*)ctxt->index, wdata, algorithm, k, scorerf, weighted); \
+    query_fun = get_query_processor<BOOST_PP_CAT(T, _index)>((BOOST_PP_CAT(T, _index)*)ctxt->index, ctxt->wdata, algorithm, k, scorerf, weighted); \
     /**/
-
     BOOST_PP_SEQ_FOR_EACH(LOOP_BODY, _, PISA_INDEX_TYPES);
 #undef LOOP_BODY
   } else {
-    spdlog::error("Unknown type {}", encoding);
+    spdlog::error("(retrieve) Unknown type {}", encoding);
   }
+    /**/
 
   auto docmap = Payload_Vector<>::from(*ctxt->docmap_source);
 
@@ -1079,10 +799,6 @@ static PyObject *py_retrieve3(PyObject *self, PyObject *args, PyObject *kwargs) 
   auto docnos = (PyObject**)result_docnos.buf;
   auto ranks  = (int32_t*)  result_ranks.buf;
   auto scores = (float_t*)  result_scores.buf;
-  float_t* latencies = NULL;
-  if (result_latencies.obj != NULL) {
-    latencies = (float_t*) result_latencies.buf;
-  }
 
   auto iter = PyObject_GetIter(in_queries);
   tbb::spin_mutex mutex;
@@ -1103,9 +819,6 @@ static PyObject *py_retrieve3(PyObject *self, PyObject *args, PyObject *kwargs) 
       res = PyIter_Next(iter);
       if (res == NULL) {
         break;
-      }
-      if (latencies != NULL) {
-        query_start = std::chrono::high_resolution_clock::now();
       }
       Query query;
       std::vector<term_id_type> parsed_query;
@@ -1156,6 +869,7 @@ static PyObject *py_retrieve3(PyObject *self, PyObject *args, PyObject *kwargs) 
       Py_DECREF(res);
 
       if (threads != 1) mutex.unlock();
+
       auto query_res = query_fun(query);
       // Stabilise the sort by sorting on score (desc), then docid (asc). See <https://github.com/pisa-engine/pisa/issues/508>
       std::sort(query_res.begin(), query_res.end(), [](auto a, auto b) {
@@ -1174,10 +888,7 @@ static PyObject *py_retrieve3(PyObject *self, PyObject *args, PyObject *kwargs) 
         i++;
       }
       std::fill(qidxs+start, qidxs+start+count, qidx);
-      if (latencies != NULL) {
-        query_end = std::chrono::high_resolution_clock::now();
-        latencies[qidx] = ((float_t)std::chrono::duration_cast<std::chrono::microseconds>(query_end - query_start).count()) * 1e-6;
-      }
+
       if (threads != 1) mutex.lock();
       for (int i=0; i<count; ++i) {
         auto docno = PyUnicode_FromStringAndSize(docnos_tmp[i].data(), docnos_tmp[i].length());
@@ -1204,7 +915,7 @@ static PyObject *py_retrieve3(PyObject *self, PyObject *args, PyObject *kwargs) 
   PyBuffer_Release(&result_docnos);
   PyBuffer_Release(&result_ranks);
   PyBuffer_Release(&result_scores);
-  PyBuffer_Release(&result_latencies);
+
   PyObject *result = PyLong_FromLong(arr_idx);
 
   if (PyErr_CheckSignals() != 0) {
@@ -1213,6 +924,7 @@ static PyObject *py_retrieve3(PyObject *self, PyObject *args, PyObject *kwargs) 
 
   return result;
 }
+
 
 
 static PyObject *py_log_level(PyObject *self, PyObject *args, PyObject *kwargs) {
@@ -1255,11 +967,9 @@ static PyMethodDef pisathon_methods[] = {
   {"index", py_index, METH_VARARGS, "index"},
   {"merge_inv", py_merge_inv, METH_VARARGS, "merge_inv"},
   {"prepare_index", (PyCFunction) py_prepare_index, METH_VARARGS | METH_KEYWORDS, "prepare_index"},
-  // {"prepare_index2", (PyCFunction) py_prepare_index2, METH_VARARGS | METH_KEYWORDS, "prepare_index2"},
   {"prepare_index3", (PyCFunction) py_prepare_index3, METH_VARARGS | METH_KEYWORDS, "prepare_index3"},
   {"retrieve", (PyCFunction)py_retrieve, METH_VARARGS | METH_KEYWORDS, "retrieve"},
-  // {"retrieve2", (PyCFunction)py_retrieve2, METH_VARARGS | METH_KEYWORDS, "retrieve2"},
-  {"retrieve3", (PyCFunction)py_retrieve3, METH_VARARGS | METH_KEYWORDS, "retrieve3"},
+  {"retrieve4", (PyCFunction)py_retrieve4, METH_VARARGS | METH_KEYWORDS, "retrieve4"},
   {"num_terms", (PyCFunction)py_num_terms, METH_VARARGS, "num_terms"},
   {"num_docs", (PyCFunction)py_num_docs, METH_VARARGS, "num_docs"},
   {"log_level", (PyCFunction)py_log_level, METH_VARARGS, "log_level"},
@@ -1295,7 +1005,7 @@ PyMODINIT_FUNC PyInit__pisathon(void)
         "pyterrier_pisa._pisathon.RetrievalContext",   /* tp_name */
         sizeof(RetrievalContext),         /* tp_basicsize */
         0,                         /* tp_itemsize */
-        (destructor) RetrievalContext_dealloc, /* tp_dealloc */
+        0, // (destructor) RetrievalContext_dealloc, /* tp_dealloc */
         0,                         /* tp_print */
         0,                         /* tp_getattr */
         0,                         /* tp_setattr */

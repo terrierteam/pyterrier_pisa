@@ -258,7 +258,7 @@ class PisaIndex(pta.Artifact, pt.Indexer):
 
 
 class PisaRetrieve(pt.Transformer):
-  def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, query_weighted=None, toks_scale=100., include_latency=False, **retr_args):
+  def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, query_weighted=None, toks_scale=100., **retr_args):
     if isinstance(index, PisaIndex):
       self.index = index
     else:
@@ -280,7 +280,6 @@ class PisaRetrieve(pt.Transformer):
     else:
       self.query_weighted = query_weighted
     self.toks_scale = toks_scale
-    self.include_latency = include_latency
     self._ctxt = _pisathon.RetrievalContext()
     _pisathon.prepare_index(str(self.index.path), encoding=self.index.index_encoding.value, scorer_name=self.scorer.value, **retr_args)
     with tempfile.TemporaryDirectory() as d:
@@ -303,7 +302,7 @@ class PisaRetrieve(pt.Transformer):
       pretok = True
       for i, toks_dict in enumerate(queries['query_toks']):
         if not isinstance(toks_dict, dict):
-          raise TypeError("query_toks column should be a dictionary (qid %s)" % qid)
+          raise TypeError("query_toks column should be a dictionary")
         toks_dict = {str(k): float(v * self.toks_scale) for k, v in toks_dict.items()} # force keys and str, vals as float, apply toks_scale
         inp.append((i, toks_dict))
     else:
@@ -319,10 +318,7 @@ class PisaRetrieve(pt.Transformer):
     result_ranks = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
     result_scores = np.ascontiguousarray(np.empty(shape, dtype=np.float32))
     kwargs = dict(self.retr_args)
-    if self.include_latency:
-      result_latencies = np.ascontiguousarray(np.empty(len(queries), dtype=np.float32))
-      kwargs['result_latencies'] = result_latencies
-    size = _pisathon.retrieve3(
+    size = _pisathon.retrieve4(
       self._ctxt,
       str(self.index.path),
       self.index.index_encoding.value,
@@ -344,8 +340,6 @@ class PisaRetrieve(pt.Transformer):
     result['docno'] = result_docnos[:size]
     result['score'] = result_scores[:size]
     result['rank'] = result_ranks[:size]
-    if self.include_latency:
-      result['latency'] = result_latencies[result_qidxs[:size]]
     return result
 
   def __repr__(self):
