@@ -675,6 +675,8 @@ static PyObject *py_prepare_index3(PyObject *self, PyObject *args, PyObject *kwa
 
   auto documents_path = f_index_dir/"fwd.doclex";
 
+  // auto wdata_source = std::make_shared<mio::mmap_source>(wand_path.string());
+  // ctxt->wdata_source = std::make_shared<mio::mmap_source>(wand_path.string());
   auto wdata = new wand_data<wand_data_raw>(MemorySource::mapped_file(wand_path.string()));
   ctxt->wdata = wdata;
 
@@ -992,7 +994,7 @@ PyMODINIT_FUNC PyInit__pisathon(void)
         "pyterrier_pisa._pisathon.RetrievalContext",   /* tp_name */
         sizeof(RetrievalContext),         /* tp_basicsize */
         0,                         /* tp_itemsize */
-        (destructor) RetrievalContext_dealloc, /* tp_dealloc */
+        0, // (destructor) RetrievalContext_dealloc, /* tp_dealloc */
         0,                         /* tp_print */
         0,                         /* tp_getattr */
         0,                         /* tp_setattr */
