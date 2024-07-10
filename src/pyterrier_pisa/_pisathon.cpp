@@ -79,6 +79,7 @@ typedef struct {
     std::shared_ptr<mio::mmap_source> docmap_source = NULL;
     std::shared_ptr<TermProcessor> term_processor = NULL;
     wand_data<wand_data_raw>* wdata = NULL;
+    std::string encoding = NULL;
 } RetrievalContext;
 
 static PyObject* RetrievalContext_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
@@ -86,20 +87,22 @@ static PyObject* RetrievalContext_new(PyTypeObject* type, PyObject* args, PyObje
 }
 
 static void RetrievalContext_dealloc(RetrievalContext* self) {
+
   if (self->index != NULL) {
-    delete self->index;
-//     const char* encoding = self->encoding->c_str();
-//     if (false) {  // NOLINT
-// #define LOOP_BODY(R, DATA, T)                                                                      \
-//     }                                                                                              \
-//     else if (strcmp(encoding, BOOST_PP_STRINGIZE(T)) == 0)                                         \
-//     {                                                                                              \
-//       delete (BOOST_PP_CAT(T, _index)*)self->index;                                                \
-//       /**/
-//       BOOST_PP_SEQ_FOR_EACH(LOOP_BODY, _, PISA_INDEX_TYPES);
-// #undef LOOP_BODY
-//     }
-    self->index = NULL;
+    const char* encoding = self->encoding.c_str();
+    /**/
+    if (false) {  // NOLINT
+  #define LOOP_BODY(R, DATA, T)                                                                    \
+    }                                                                                              \
+    else if (strcmp(encoding, BOOST_PP_STRINGIZE(T)) == 0)                                         \
+    {                                                                                              \
+      delete (BOOST_PP_CAT(T, _index)*)self->index;                                                \
+    /**/
+      BOOST_PP_SEQ_FOR_EACH(LOOP_BODY, _, PISA_INDEX_TYPES);
+  #undef LOOP_BODY
+    } else {
+      spdlog::error("(prepare_index) Unknown type {}", encoding);
+    }
   }
 
   if (self->wdata != NULL) {
@@ -623,8 +626,6 @@ static PyObject *py_prepare_index3(PyObject *self, PyObject *args, PyObject *kwa
   int pretoks = 0;
   unsigned long long block_size = 64;
   unsigned int in_quantize = 0;
-  unsigned int in_weighted = 0;
-  unsigned int k = 1000;
   float bm25_k1 = -100;
   float bm25_b = -100;
   float pl2_c = -100;
@@ -634,9 +635,9 @@ static PyObject *py_prepare_index3(PyObject *self, PyObject *args, PyObject *kwa
   /* Parse arguments */
   // Refer to the documentation for the kwarg type (character) definitions: https://docs.python.org/3/c-api/arg.html
   // Most notably: s: string, O: PyObject, K: unsigned long long, I: unsigned int, f: float, w*: Py_buffer
-  static const char *kwlist[] = {"context", "index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "stop_fname", "query_weighted", "k", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Osssss|KIffffsiI", const_cast<char **>(kwlist),
-                                     &ctxt, &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &stop_fname, &in_weighted, &k))
+  static const char *kwlist[] = {"context", "index_dir", "encoding", "scorer_name", "stemmer", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "stop_fname", NULL};
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Ossss|KIffffsiI", const_cast<char **>(kwlist),
+                                     &ctxt, &index_dir, &encoding, &scorer_name, &stemmer, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &stop_fname))
   {
       return NULL;
   }
@@ -655,6 +656,8 @@ static PyObject *py_prepare_index3(PyObject *self, PyObject *args, PyObject *kwa
 
   ctxt->term_processor = std::make_shared<TermProcessor>(TermProcessor((f_index_dir/"fwd.termlex").string(), stop_inp, stemmer_inp));
 
+  ctxt->encoding = std::string(encoding);
+
   bool quantize = in_quantize != 0;
   auto scorer = ScorerParams(scorer_name);
   if (bm25_k1 != -100) scorer.bm25_k1 = bm25_k1;
@@ -671,17 +674,34 @@ static PyObject *py_prepare_index3(PyObject *self, PyObject *args, PyObject *kwa
   else return NULL;
 
   auto wand_path = f_index_dir/fmt::format("{}.q{:d}.bmw.{:d}", scorer_fmt, quantize, block_size);
-  auto index_path = (fmt::format("{}.{}", wand_path.string(), encoding));
+  auto index_path = fmt::format("{}.{}", wand_path.string(), encoding);
+
+  if (!fs::exists(wand_path)) {
+    pisa::create_wand_data(
+        wand_path.string(),
+        (f_index_dir/"inv").string(),
+        pisa::FixedBlock(block_size),
+        scorer,
+        false,
+        false,
+        quantize,
+        {});
+  }
+  if (!fs::exists(index_path)) {
+    pisa::compress(
+        (f_index_dir/"inv").string(),
+        wand_path.string(),
+        encoding,
+        index_path,
+        scorer,
+        quantize,
+        false);
+  }
 
   auto documents_path = f_index_dir/"fwd.doclex";
 
-  // auto wdata_source = std::make_shared<mio::mmap_source>(wand_path.string());
-  // ctxt->wdata_source = std::make_shared<mio::mmap_source>(wand_path.string());
   auto wdata = new wand_data<wand_data_raw>(MemorySource::mapped_file(wand_path.string()));
   ctxt->wdata = wdata;
-
-  auto scorerf = scorer::from_params(scorer, *wdata);
-  bool weighted = in_weighted == 1;
 
   /**/
   if (false) {  // NOLINT
@@ -994,7 +1014,7 @@ PyMODINIT_FUNC PyInit__pisathon(void)
         "pyterrier_pisa._pisathon.RetrievalContext",   /* tp_name */
         sizeof(RetrievalContext),         /* tp_basicsize */
         0,                         /* tp_itemsize */
-        0, // (destructor) RetrievalContext_dealloc, /* tp_dealloc */
+        (destructor) RetrievalContext_dealloc, /* tp_dealloc */
         0,                         /* tp_print */
         0,                         /* tp_getattr */
         0,                         /* tp_setattr */
