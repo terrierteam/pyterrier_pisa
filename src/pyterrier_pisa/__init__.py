@@ -270,7 +270,7 @@ class PisaRetrieve(pt.Transformer):
     self.verbose = verbose
     self.threads = threads or self.index.threads
     if stops is None:
-      self.stpps = self.index.stops
+      stops = self.index.stops
     self.stops = PisaStopwords(stops)
     if query_algorithm is None:
       query_algorithm = PISA_INDEX_DEFAULTS['query_algorithm']
