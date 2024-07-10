@@ -294,7 +294,7 @@ class PisaRetrieve(pt.Transformer):
     if force or self._ctxt_key != key:
       self._ctxt = _pisathon.RetrievalContext()
       with tempfile.TemporaryDirectory() as d:
-        _pisathon.prepare_index3(
+        _pisathon.prepare_index(
           self._ctxt,
           str(self.index.path),
           self.index.index_encoding.value,
@@ -328,7 +328,7 @@ class PisaRetrieve(pt.Transformer):
     result_docnos = np.ascontiguousarray(np.empty(shape, dtype=object))
     result_ranks = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
     result_scores = np.ascontiguousarray(np.empty(shape, dtype=np.float32))
-    size = _pisathon.retrieve4(
+    size = _pisathon.retrieve(
       self._ctxt,
       self.query_algorithm.value,
       inp,
