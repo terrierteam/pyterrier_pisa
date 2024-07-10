@@ -473,98 +473,98 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   size_t arr_idx = 0;
 
   auto run = [&, threads](size_t thread_idx) {
-    PyObject* res;
-    int qidx;
-    const char* qtext;
-    if (threads != 1) mutex.lock();
-    auto docnos_tmp = new std::string[k];
-    std::chrono::time_point<std::chrono::high_resolution_clock> query_start;
-    std::chrono::time_point<std::chrono::high_resolution_clock> query_end;
-    while (1) {
-      if (PyErr_CheckSignals() != 0) {
-        break;
-      }
-      res = PyIter_Next(iter);
-      if (res == NULL) {
-        break;
-      }
-      Query query;
-      std::vector<term_id_type> parsed_query;
-      if (pretoks) {
-        PyObject* qtermsdict;
-        // tuple of string and dictiorary, where each entry contains a term and float weight
-        PyArg_ParseTuple(res, "iO", &qidx, &qtermsdict);
-        PyObject *termKey, *weightValue;
-        Py_ssize_t pos = 0;
-        while (PyDict_Next(qtermsdict, &pos, &termKey, &weightValue)) {
-          // term
-          const char* term_string = PyUnicode_AsUTF8(termKey);
-          if (term_string == NULL && PyErr_Occurred()) {
-            PyErr_SetString(PyExc_TypeError, "token string could not be parsed");
+        PyObject* res;
+        int qidx;
+        const char* qtext;
+        if (threads != 1) mutex.lock();
+        auto docnos_tmp = new std::string[k];
+        std::chrono::time_point<std::chrono::high_resolution_clock> query_start;
+        std::chrono::time_point<std::chrono::high_resolution_clock> query_end;
+        while (1) {
+          if (PyErr_CheckSignals() != 0) {
             break;
           }
-          //we assume that stemming and stopwords are disabled here
-          //and hence term_processor is a basic one.
-          auto term = term_processor(term_string);
-          if (term) {
-            // weight
-            double weight = PyFloat_AS_DOUBLE(weightValue);
-            if (weight == -1.0 && PyErr_Occurred()) {
-              PyErr_SetString(PyExc_TypeError, "tok weights must be double");
-              break;
+          res = PyIter_Next(iter);
+          if (res == NULL) {
+            break;
+          }
+          Query query;
+          std::vector<term_id_type> parsed_query;
+          if (pretoks) {
+            PyObject* qtermsdict;
+            // tuple of string and dictiorary, where each entry contains a term and float weight
+            PyArg_ParseTuple(res, "iO", &qidx, &qtermsdict);
+            PyObject *termKey, *weightValue;
+            Py_ssize_t pos = 0;
+            while (PyDict_Next(qtermsdict, &pos, &termKey, &weightValue)) {
+              // term
+              const char* term_string = PyUnicode_AsUTF8(termKey);
+              if (term_string == NULL && PyErr_Occurred()) {
+                PyErr_SetString(PyExc_TypeError, "token string could not be parsed");
+                break;
+              }
+              //we assume that stemming and stopwords are disabled here
+              //and hence term_processor is a basic one.
+              auto term = term_processor(term_string);
+              if (term) {
+                // weight
+                double weight = PyFloat_AS_DOUBLE(weightValue);
+                if (weight == -1.0 && PyErr_Occurred()) {
+                  PyErr_SetString(PyExc_TypeError, "tok weights must be double");
+                  break;
+                }
+                // Doesn't look like PISA uses the query_weights for anything; instead, we gotta repeat the query terms
+                for (int i=1; i<=weight; i++) {
+                  parsed_query.push_back(*term);
+                }
+              }
             }
-            // Doesn't look like PISA uses the query_weights for anything; instead, we gotta repeat the query terms
-            for (int i=1; i<=weight; i++) {
-              parsed_query.push_back(*term);
+            query = {"", std::move(parsed_query), {}};
+
+          } else {
+            PyArg_ParseTuple(res, "is", &qidx, &qtext);
+            auto tokenstream = EnglishTokenizer().tokenize(qtext);
+            std::vector<term_id_type> parsed_query;
+            for (auto term_iter = tokenstream->begin(); term_iter != tokenstream->end(); ++term_iter) {
+              auto raw_term = *term_iter;
+              auto term = term_processor(raw_term);
+              if (term && !term_processor.is_stopword(*term)) {
+                parsed_query.push_back(*term);
+              }
             }
+            query = {"", std::move(parsed_query), {}};
+          }
+          Py_DECREF(res);
+
+          if (threads != 1) mutex.unlock();
+
+          auto query_res = query_fun(query);
+          // Stabilise the sort by sorting on score (desc), then docid (asc). See <https://github.com/pisa-engine/pisa/issues/508>
+          std::sort(query_res.begin(), query_res.end(), [](auto a, auto b) {
+            return a.first == b.first ? a.second < b.second : a.first > b.first;
+          });
+          auto count = query_res.size();
+          if (threads != 1) mutex.lock();
+          size_t start = arr_idx;
+          arr_idx += count;
+          if (threads != 1) mutex.unlock();
+          size_t i = 0;
+          for (auto r: query_res) {
+            docnos_tmp[i] = docmap[r.second];
+            scores[start+i] = r.first;
+            ranks[start+i] = i;
+            i++;
+          }
+          std::fill(qidxs+start, qidxs+start+count, qidx);
+
+          if (threads != 1) mutex.lock();
+          for (int i=0; i<count; ++i) {
+            auto docno = PyUnicode_FromStringAndSize(docnos_tmp[i].data(), docnos_tmp[i].length());
+            docnos[start+i] = docno; // takes ownership, shouldn't decref
           }
         }
-        query = {"", std::move(parsed_query), {}};
-
-      } else {
-        PyArg_ParseTuple(res, "is", &qidx, &qtext);
-        auto tokenstream = EnglishTokenizer().tokenize(qtext);
-        std::vector<term_id_type> parsed_query;
-        for (auto term_iter = tokenstream->begin(); term_iter != tokenstream->end(); ++term_iter) {
-          auto raw_term = *term_iter;
-          auto term = term_processor(raw_term);
-          if (term && !term_processor.is_stopword(*term)) {
-            parsed_query.push_back(*term);
-          }
-        }
-        query = {"", std::move(parsed_query), {}};
-      }
-      Py_DECREF(res);
-
-      if (threads != 1) mutex.unlock();
-
-      auto query_res = query_fun(query);
-      // Stabilise the sort by sorting on score (desc), then docid (asc). See <https://github.com/pisa-engine/pisa/issues/508>
-      std::sort(query_res.begin(), query_res.end(), [](auto a, auto b) {
-        return a.first == b.first ? a.second < b.second : a.first > b.first;
-      });
-      auto count = query_res.size();
-      if (threads != 1) mutex.lock();
-      size_t start = arr_idx;
-      arr_idx += count;
-      if (threads != 1) mutex.unlock();
-      size_t i = 0;
-      for (auto r: query_res) {
-        docnos_tmp[i] = docmap[r.second];
-        scores[start+i] = r.first;
-        ranks[start+i] = i;
-        i++;
-      }
-      std::fill(qidxs+start, qidxs+start+count, qidx);
-
-      if (threads != 1) mutex.lock();
-      for (int i=0; i<count; ++i) {
-        auto docno = PyUnicode_FromStringAndSize(docnos_tmp[i].data(), docnos_tmp[i].length());
-        docnos[start+i] = docno; // takes ownership, shouldn't decref
-      }
-    }
-    if (threads != 1) mutex.unlock();
-    delete [] docnos_tmp;
+        if (threads != 1) mutex.unlock();
+        delete [] docnos_tmp;
   };
 
   if (threads == 1) {
