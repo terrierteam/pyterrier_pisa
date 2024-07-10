@@ -73,6 +73,7 @@ namespace fs = boost::filesystem;
 
 static PyTypeObject RetrievalContextType;
 
+
 typedef struct {
     PyObject_HEAD
     void* index = NULL;
@@ -83,9 +84,11 @@ typedef struct {
     std::string* encoding = NULL;
 } RetrievalContext;
 
+
 static PyObject* RetrievalContext_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
     return type->tp_alloc(type, 0);
 }
+
 
 static void RetrievalContext_dealloc(RetrievalContext* self) {
 
@@ -117,6 +120,7 @@ static void RetrievalContext_dealloc(RetrievalContext* self) {
     self->wdata = NULL;
   }
 }
+
 
 static PyObject *py_index(PyObject *self, PyObject *args) {
   const char* fin;
