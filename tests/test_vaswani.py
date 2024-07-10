@@ -7,12 +7,14 @@ class VaswaniTest(TempDirTestCase):
     def test_index_and_retrieve(self):
         from pyterrier_pisa import PisaIndex
         dataset = pt.get_dataset("vaswani")
-        idx = PisaIndex(self.test_dir)
+        idx = PisaIndex(self.test_dir, threads=1)
         idx.index(dataset.get_corpus_iter())
         TRANS = [idx.bm25(), idx.dph(), idx.qld(), idx.pl2()]
+        #TRANS = [0,0,0,0]
         MAPS = [0.305349, 0.291841, 0.241206, 0.274852]
         for t in TRANS:
             results = t.search("chemical reactions")
+            #results = idx.bm25().search("chemical reactions")
             self.assertEqual(52, len(results))
         exp_df = pt.Experiment(
             TRANS,
