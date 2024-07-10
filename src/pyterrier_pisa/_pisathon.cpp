@@ -78,6 +78,7 @@ typedef struct {
     void* index = NULL;
     std::shared_ptr<mio::mmap_source> docmap_source = NULL;
     std::shared_ptr<TermProcessor> term_processor = NULL;
+    std::shared_ptr<ScorerParams> scorer = NULL;
     wand_data<wand_data_raw>* wdata = NULL;
     std::string* encoding = NULL;
 } RetrievalContext;
@@ -669,6 +670,8 @@ static PyObject *py_prepare_index3(PyObject *self, PyObject *args, PyObject *kwa
   else if (scorer.name == "quantized") scorer_fmt = scorer.name;
   else return NULL;
 
+  ctxt->scorer = std::make_shared<ScorerParams>(scorer);
+
   auto wand_path = f_index_dir/fmt::format("{}.q{:d}.bmw.{:d}", scorer_fmt, quantize, block_size);
   auto index_path = fmt::format("{}.{}", wand_path.string(), encoding);
 
@@ -721,22 +724,11 @@ static PyObject *py_prepare_index3(PyObject *self, PyObject *args, PyObject *kwa
 
 static PyObject *py_retrieve4(PyObject *self, PyObject *args, PyObject *kwargs) {
   RetrievalContext* ctxt;
-  const char* index_dir;
-  const char* encoding;
   const char* algorithm;
-  const char* stemmer;
-  const char* scorer_name;
-  const char* stop_fname = "";
   int pretoks = 0;
   PyObject* in_queries;
-  unsigned long long block_size = 64;
-  unsigned int in_quantize = 0;
   unsigned int in_weighted = 0;
   unsigned int k = 1000;
-  float bm25_k1 = -100;
-  float bm25_b = -100;
-  float pl2_c = -100;
-  float qld_mu = -100;
   unsigned int threads = 1;
 
   Py_buffer result_qidxs;
@@ -747,9 +739,9 @@ static PyObject *py_retrieve4(PyObject *self, PyObject *args, PyObject *kwargs) 
   /* Parse arguments */
   // Refer to the documentation for the kwarg type (character) definitions: https://docs.python.org/3/c-api/arg.html
   // Most notably: s: string, O: PyObject, K: unsigned long long, I: unsigned int, f: float, w*: Py_buffer
-  static const char *kwlist[] = {"context", "index_dir", "encoding", "algorithm", "scorer_name", "stemmer", "queries", "block_size", "quantize", "bm25_k1", "bm25_b", "pl2_c", "qld_mu", "k", "stop_fname", "threads", "pretokenised", "query_weighted", "result_qidxs", "result_docnos", "result_ranks", "result_scores", NULL};
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OsssssO|KIffffIsIiiw*w*w*w*", const_cast<char **>(kwlist),
-                                     &ctxt, &index_dir, &encoding, &algorithm, &scorer_name, &stemmer, &in_queries, &block_size, &in_quantize, &bm25_k1, &bm25_b, &pl2_c, &qld_mu, &k, &stop_fname, &threads, &pretoks, &in_weighted, &result_qidxs, &result_docnos, &result_ranks, &result_scores))
+  static const char *kwlist[] = {"context", "algorithm", "queries", "k","threads", "pretokenised", "query_weighted", "result_qidxs", "result_docnos", "result_ranks", "result_scores", NULL};
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OsO|IIiiw*w*w*w*", const_cast<char **>(kwlist),
+                                     &ctxt, &algorithm, &in_queries, &k, &threads, &pretoks, &in_weighted, &result_qidxs, &result_docnos, &result_ranks, &result_scores))
   {
       return NULL;
   }
@@ -761,29 +753,14 @@ static PyObject *py_retrieve4(PyObject *self, PyObject *args, PyObject *kwargs) 
     return NULL;
   }
 
-  fs::path f_index_dir (index_dir);
-
-  TermProcessor term_processor = *(ctxt->term_processor);
-
-  bool quantize = in_quantize != 0;
-  auto scorer = ScorerParams(scorer_name);
-  if (bm25_k1 != -100) scorer.bm25_k1 = bm25_k1;
-  if (bm25_b  != -100) scorer.bm25_b  = bm25_b;
-  if (pl2_c   != -100) scorer.pl2_c   = pl2_c;
-  if (qld_mu  != -100) scorer.qld_mu  = qld_mu;
-
-  std::string scorer_fmt;
-       if (scorer.name == "bm25") scorer_fmt = fmt::format("{}.k1-{}.b-{}", scorer.name, scorer.bm25_k1, scorer.bm25_b);
-  else if (scorer.name == "pl2") scorer_fmt = fmt::format("{}.c-{}", scorer.name, scorer.pl2_c);
-  else if (scorer.name == "qld") scorer_fmt = fmt::format("{}.mu-{}", scorer.name, scorer.qld_mu);
-  else if (scorer.name == "dph") scorer_fmt = scorer.name;
-  else if (scorer.name == "quantized") scorer_fmt = scorer.name;
-  else return NULL;
+  TermProcessor term_processor = *ctxt->term_processor;
+  ScorerParams scorer = *ctxt->scorer;
 
   auto scorerf = scorer::from_params(scorer, *ctxt->wdata);
   bool weighted = in_weighted == 1;
 
   std::function<std::vector<typename topk_queue::entry_type>(Query)> query_fun = NULL;
+  const char* encoding = ctxt->encoding->c_str();
   if (false) {  // NOLINT
 #define LOOP_BODY(R, DATA, T)                                                                    \
   }                                                                                              \

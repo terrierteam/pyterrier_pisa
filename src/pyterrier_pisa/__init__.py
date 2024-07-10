@@ -284,14 +284,14 @@ class PisaRetrieve(pt.Transformer):
     self._ctxt_key = None
     self.reset_retrieval_context()
 
-  def reset_retrieval_context(self):
+  def reset_retrieval_context(self, force=False):
     key = [
       str(self.index.path), self.index.index_encoding, self.scorer, self.index.stemmer, self.stops, self.query_weighted,
     ]
     for k, v in sorted(self.retr_args.items()):
       key.extend([k, v])
     key = tuple(key)
-    if self._ctxt_key != key:
+    if force or self._ctxt_key != key:
       self._ctxt = _pisathon.RetrievalContext()
       with tempfile.TemporaryDirectory() as d:
         _pisathon.prepare_index3(
@@ -330,22 +330,17 @@ class PisaRetrieve(pt.Transformer):
     result_scores = np.ascontiguousarray(np.empty(shape, dtype=np.float32))
     size = _pisathon.retrieve4(
       self._ctxt,
-      str(self.index.path),
-      self.index.index_encoding.value,
       self.query_algorithm.value,
-      self.scorer.value,
-      '' if self.index.stemmer == PisaStemmer.none else self.index.stemmer.value,
       inp,
       k=self.num_results,
       threads=self.threads,
-      # stop_fname=self._stops_fname(d),
       query_weighted=1 if self.query_weighted else 0,
       pretokenised=pretok,
       result_qidxs=result_qidxs,
       result_docnos=result_docnos,
       result_ranks=result_ranks,
       result_scores=result_scores,
-      **self.retr_args)
+    )
     result = queries.iloc[result_qidxs[:size]].reset_index(drop=True)
     result['docno'] = result_docnos[:size]
     result['score'] = result_scores[:size]
