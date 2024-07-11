@@ -92,14 +92,17 @@ static PyObject* RetrievalContext_new(PyTypeObject* type, PyObject* args, PyObje
 
 static void RetrievalContext_dealloc(RetrievalContext* self) {
 
+  printf("delete index?\n");
   if (self->index != NULL) {
     const char* encoding = self->encoding->c_str();
+    printf("deleting index...\n");
     /**/
     if (false) {  // NOLINT
   #define LOOP_BODY(R, DATA, T)                                                                    \
     }                                                                                              \
     else if (strcmp(encoding, BOOST_PP_STRINGIZE(T)) == 0)                                         \
     {                                                                                              \
+      printf("  %s\n", BOOST_PP_STRINGIZE(T));                                                     \
       delete (BOOST_PP_CAT(T, _index)*)self->index;                                                \
     /**/
       BOOST_PP_SEQ_FOR_EACH(LOOP_BODY, _, PISA_INDEX_TYPES);
@@ -108,11 +111,15 @@ static void RetrievalContext_dealloc(RetrievalContext* self) {
       spdlog::error("(prepare_index) Unknown type {}", encoding);
     }
     self->index = NULL;
+    printf("deleted index.\n");
   }
 
+  printf("delete wdata?\n");
   if (self->wdata != NULL) {
+    printf("deleting wdata...\n");
     delete self->wdata;
     self->wdata = NULL;
+    printf("deleted wdata.\n");
   }
 }
 
