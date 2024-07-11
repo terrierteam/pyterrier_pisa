@@ -121,6 +121,10 @@ static void RetrievalContext_dealloc(RetrievalContext* self) {
     self->wdata = NULL;
     printf("deleted wdata.\n");
   }
+
+  printf("deleting self...\n");
+  Py_TYPE(self)->tp_free((PyObject*)self);
+  printf("deleted self.\n");
 }
 
 
