@@ -690,57 +690,69 @@ static struct PyModuleDef pisathon_module_def = {
 
 PyMODINIT_FUNC PyInit__pisathon(void)
 {
-  PyObject* const module = PyModule_Create(&pisathon_module_def);
-  if (module == NULL) {
-    return NULL;
-  }
+  try {
+    PyObject* const module = PyModule_Create(&pisathon_module_def);
+    if (module == NULL) {
+      throw std::runtime_error("Failed to create the _pisathon module.");
+    }
 
-  PyTypeObject RetrievalContextType_local = {
-        PyVarObject_HEAD_INIT(NULL, 0)
-        "pyterrier_pisa._pisathon.RetrievalContext",   /* tp_name */
-        sizeof(RetrievalContext),         /* tp_basicsize */
-        0,                         /* tp_itemsize */
-        (destructor) RetrievalContext_dealloc, /* tp_dealloc */
-        0,                         /* tp_print */
-        0,                         /* tp_getattr */
-        0,                         /* tp_setattr */
-        0,                         /* tp_reserved */
-        0,                         /* tp_repr */
-        0,                         /* tp_as_number */
-        0,                         /* tp_as_sequence */
-        0,                         /* tp_as_mapping */
-        0,                         /* tp_hash */
-        0,                         /* tp_call */
-        0,                         /* tp_str */
-        0,                         /* tp_getattro */
-        0,                         /* tp_setattro */
-        0,                         /* tp_as_buffer */
-        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
-        "RetrievalContext object",       /* tp_doc */
-        0,                         /* tp_traverse */
-        0,                         /* tp_clear */
-        0,                         /* tp_richcompare */
-        0,                         /* tp_weaklistoffset */
-        0,                         /* tp_iter */
-        0,                         /* tp_iternext */
-        0,                         /* tp_methods */
-        0,                         /* tp_members */
-        0,                         /* tp_getset */
-        0,                         /* tp_base */
-        0,                         /* tp_dict */
-        0,                         /* tp_descr_get */
-        0,                         /* tp_descr_set */
-        0,                         /* tp_dictoffset */
-        0,                         /* tp_init */
-        0,                         /* tp_alloc */
-        RetrievalContext_new,             /* tp_new */
-  };
-  RetrievalContextType = RetrievalContextType_local;
-  if (PyType_Ready(&RetrievalContextType) < 0) {
+    PyTypeObject RetrievalContextType_local = {
+          PyVarObject_HEAD_INIT(NULL, 0)
+          "pyterrier_pisa._pisathon.RetrievalContext",   /* tp_name */
+          sizeof(RetrievalContext),         /* tp_basicsize */
+          0,                         /* tp_itemsize */
+          (destructor) RetrievalContext_dealloc, /* tp_dealloc */
+          0,                         /* tp_print */
+          0,                         /* tp_getattr */
+          0,                         /* tp_setattr */
+          0,                         /* tp_reserved */
+          0,                         /* tp_repr */
+          0,                         /* tp_as_number */
+          0,                         /* tp_as_sequence */
+          0,                         /* tp_as_mapping */
+          0,                         /* tp_hash */
+          0,                         /* tp_call */
+          0,                         /* tp_str */
+          0,                         /* tp_getattro */
+          0,                         /* tp_setattro */
+          0,                         /* tp_as_buffer */
+          Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
+          "RetrievalContext object",       /* tp_doc */
+          0,                         /* tp_traverse */
+          0,                         /* tp_clear */
+          0,                         /* tp_richcompare */
+          0,                         /* tp_weaklistoffset */
+          0,                         /* tp_iter */
+          0,                         /* tp_iternext */
+          0,                         /* tp_methods */
+          0,                         /* tp_members */
+          0,                         /* tp_getset */
+          0,                         /* tp_base */
+          0,                         /* tp_dict */
+          0,                         /* tp_descr_get */
+          0,                         /* tp_descr_set */
+          0,                         /* tp_dictoffset */
+          0,                         /* tp_init */
+          0,                         /* tp_alloc */
+          RetrievalContext_new,             /* tp_new */
+    };
+    RetrievalContextType = RetrievalContextType_local;
+    if (PyType_Ready(&RetrievalContextType) < 0) {
+      throw std::runtime_error("Failed to create the RetrievalContextType.");
+    }
+    Py_INCREF(&RetrievalContextType);
+    PyModule_AddObject(module, "RetrievalContext", (PyObject*) &RetrievalContextType);
+    return module;
+  } catch (const std::exception &e) {
+    if (!PyErr_Occurred()) {
+      PyErr_SetString(PyExc_RuntimeError, e.what());
+    }
+    return NULL;
+  } catch (...) {
+    if (!PyErr_Occurred()) {
+      PyErr_SetString(PyExc_RuntimeError, "An unknown error occurred during module initialization");
+    }
     return NULL;
   }
-  Py_INCREF(&RetrievalContextType);
-  PyModule_AddObject(module, "RetrievalContext", (PyObject*) &RetrievalContextType);
-  return module;
 }
 #endif /* PY_MAJOR_VERSION >= 3 */
