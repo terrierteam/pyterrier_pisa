@@ -11,7 +11,7 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('source')
   args = parser.parse_args()
-  version = re.match(r'cp([0-9]+)', args.source).group(1)
+  version = re.search(r'cp([0-9]+)', args.source).group(1)
   print('------------- version ----------------')
   print(version)
   source = list(Path(args.source).glob('pyterrier_pisa*.whl'))[0]
