@@ -12,7 +12,7 @@ def main():
   parser.add_argument('source')
   args = parser.parse_args()
   source = list(Path(args.source).glob('pyterrier_pisa*.whl'))[0]
-  version = re.search(r'cp([0-9]+)', args.source).group(1)
+  version = re.search(r'cp([0-9]+)', source).group(1)
   print('------------- version ----------------')
   print(version)
   with tempfile.NamedTemporaryFile() as tmpf:
