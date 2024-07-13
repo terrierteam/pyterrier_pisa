@@ -6,7 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 #set(CMAKE_CXX_COMPILER "/usr/bin/g++-7")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=generic")
 #set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--export-all-symbols")
 
 # Speed up the build by removing CLI tools, tests, and benchmarks
