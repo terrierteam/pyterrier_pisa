@@ -674,12 +674,6 @@ static PyMethodDef pisathon_methods[] = {
 };
 
 //-----------------------------------------------------------------------------
-#if PY_MAJOR_VERSION < 3
-PyMODINIT_FUNC init__pisathon(void)
-{
-  (void) Py_InitModule("_pisathon", pisathon_methods);
-}
-#else /* PY_MAJOR_VERSION >= 3 */
 static struct PyModuleDef pisathon_module_def = {
   PyModuleDef_HEAD_INIT,
   "_pisathon",
@@ -691,10 +685,14 @@ static struct PyModuleDef pisathon_module_def = {
 PyMODINIT_FUNC PyInit__pisathon(void)
 {
   try {
+    printf("PyInit 1\n");
     PyObject* const module = PyModule_Create(&pisathon_module_def);
+    printf("PyInit 2\n");
     if (module == NULL) {
+      printf("PyInit 2.fails\n");
       throw std::runtime_error("Failed to create the _pisathon module.");
     }
+    printf("PyInit 3\n");
 
     PyTypeObject RetrievalContextType_local = {
           PyVarObject_HEAD_INIT(NULL, 0)
@@ -736,23 +734,31 @@ PyMODINIT_FUNC PyInit__pisathon(void)
           0,                         /* tp_alloc */
           RetrievalContext_new,             /* tp_new */
     };
+    printf("PyInit 4\n");
     RetrievalContextType = RetrievalContextType_local;
+    printf("PyInit 5\n");
     if (PyType_Ready(&RetrievalContextType) < 0) {
+      printf("PyInit 5.fails\n");
       throw std::runtime_error("Failed to create the RetrievalContextType.");
     }
+    printf("PyInit 6\n");
     Py_INCREF(&RetrievalContextType);
+    printf("PyInit 7\n");
     PyModule_AddObject(module, "RetrievalContext", (PyObject*) &RetrievalContextType);
+    printf("PyInit 8\n");
     return module;
   } catch (const std::exception &e) {
+    printf("PyInit catch1\n");
     if (!PyErr_Occurred()) {
+      printf("PyInit catch1.%s\n", e.what());
       PyErr_SetString(PyExc_RuntimeError, e.what());
     }
     return NULL;
   } catch (...) {
+    printf("PyInit catch2\n");
     if (!PyErr_Occurred()) {
       PyErr_SetString(PyExc_RuntimeError, "An unknown error occurred during module initialization");
     }
     return NULL;
   }
 }
-#endif /* PY_MAJOR_VERSION >= 3 */
