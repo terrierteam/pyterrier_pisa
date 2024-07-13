@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 #set(CMAKE_CXX_COMPILER "/usr/bin/g++-7")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64 -mssse3")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mtune=generic")
 #set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--export-all-symbols")
 
