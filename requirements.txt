@@ -3,3 +3,4 @@ pyterrier-alpha>=0.2.0
 numpy>=1.21.0, <2.0.0
 pyciff==0.1.1
 tqdm
+tbb==2020.0.133

@@ -12,13 +12,14 @@ import numpy as np
 class bdist_wheel(skbuild.command.bdist_wheel.bdist_wheel):
   def run(self):
     res = super().run()
-    wheel = self.distribution.dist_files[0][2]
+    # wheel = self.distribution.dist_files[0][2]
     pisathon_so = list((Path(self.distribution.package_dir['pyterrier_pisa']).parent.parent).glob('**/_pisathon*.so'))[0]
-    lib_tbb = list((Path(self.distribution.package_dir['pyterrier_pisa']).parent.parent.parent).glob('**/libtbb.so.2'))[0]
-    print(f'patching wheel with {pisathon_so} and {lib_tbb}')
+    # lib_tbb = list((Path(self.distribution.package_dir['pyterrier_pisa']).parent.parent.parent).glob('**/libtbb.so.2'))[0]
+    # print(f'patching wheel with {pisathon_so} and {lib_tbb}')
+    print(f'patching wheel with {pisathon_so}')
     base_path = Path('/tmp/libtbb' if os.environ.get("PT_PISA_MANYLINUX", "False") == "True" else '_skbuild/libtbb')
     base_path.mkdir(exist_ok=True, parents=True)
-    shutil.copy(lib_tbb, base_path/lib_tbb.name)
+    # shutil.copy(lib_tbb, base_path/lib_tbb.name)
     shutil.copy(pisathon_so, base_path/pisathon_so.name)
     return res
 
