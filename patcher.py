@@ -11,6 +11,9 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('source')
   args = parser.parse_args()
+  version = re.match(r'cp([0-9]+)', args.source).group(1)
+  print('------------- version ----------------')
+  print(version)
   source = list(Path(args.source).glob('pyterrier_pisa*.whl'))[0]
   with tempfile.NamedTemporaryFile() as tmpf:
     with zipfile.ZipFile(source, 'r') as zipf:
@@ -20,7 +23,7 @@ def main():
 
     if os.environ.get("PT_PISA_MANYLINUX", "False") == "True":
       tbb = Path('/tbb/tbb/lib/intel64/gcc4.8/libtbb.so.2')
-      pisathon_so = list(Path('/tmp/libtbb/').glob('_pisathon*'))[0]
+      pisathon_so = list(Path('/tmp/libtbb/').glob('_pisathon*-' + version + '-*'))[0]
     else:
       tbb = list(Path('_skbuild/libtbb/').glob('libtbb.so.2'))[0]
       pisathon_so = list(Path('_skbuild/libtbb/').glob('_pisathon*'))[0]
