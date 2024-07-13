@@ -280,7 +280,7 @@ class PisaRetrieve(pt.Transformer):
     else:
       self.query_weighted = query_weighted
     self.toks_scale = toks_scale
-    self._ctxt = _pisathon.RetrievalContext()
+    self._ctxt = None
     self._ctxt_key = None
     self.reset_retrieval_context()
 

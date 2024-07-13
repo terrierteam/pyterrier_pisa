@@ -38,6 +38,7 @@ setup(
     include_package_data=True,
     install_requires=list(open('requirements.txt')),
     python_requires=">=3.8",
+    cmake_args=['-DCMAKE_CXX_FLAGS=-mtune=generic'],
     entry_points={
         'console_scripts': ['pyterrier_pisa=pyterrier_pisa.cli:main'],
         'pyterrier.artifact': [
