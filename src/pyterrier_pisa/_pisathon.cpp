@@ -122,6 +122,27 @@ static void RetrievalContext_dealloc(RetrievalContext* self) {
     printf("deleted wdata.\n");
   }
 
+  printf("delete docmap_source?\n");
+  if (self->docmap_source != NULL) {
+    printf("deleting docmap_source...\n");
+    self->docmap_source = NULL;
+    printf("deleted docmap_source.\n");
+  }
+
+  printf("delete term_processor?\n");
+  if (self->term_processor != NULL) {
+    printf("deleting term_processor...\n");
+    self->term_processor = NULL;
+    printf("deleted term_processor.\n");
+  }
+
+  printf("delete scorer?\n");
+  if (self->scorer != NULL) {
+    printf("deleting scorer...\n");
+    self->scorer = NULL;
+    printf("deleted scorer.\n");
+  }
+
   printf("deleting self...\n");
   Py_TYPE(self)->tp_free((PyObject*)self);
   printf("deleted self.\n");
