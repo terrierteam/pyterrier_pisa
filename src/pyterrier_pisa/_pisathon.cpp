@@ -144,6 +144,8 @@ static void RetrievalContext_dealloc(RetrievalContext* self) {
   }
 
   printf("deleting self...\n");
+  PyObject_GC_UnTrack(self);
+  Py_CLEAR(self->ref);
   Py_TYPE(self)->tp_free((PyObject*)self);
   printf("deleted self.\n");
 }
