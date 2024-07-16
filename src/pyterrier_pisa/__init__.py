@@ -103,7 +103,7 @@ class PisaIndex(pta.Artifact, pt.Indexer):
       index_encoding: Optional[Union[PisaIndexEncoding, str]] = None,
       batch_size: int = 100_000,
       stops: Optional[Union[PisaStopwords, List[str]]] = None,
-      threads: int = 8,
+      threads: int = 1,
       overwrite=False):
     super().__init__(path)
     if stemmer is not None: stemmer = PisaStemmer(stemmer)
