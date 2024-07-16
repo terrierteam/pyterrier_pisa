@@ -124,21 +124,21 @@ static void RetrievalContext_dealloc(RetrievalContext* self) {
 
   printf("delete docmap_source?\n");
   if (self->docmap_source != NULL) {
-    printf("deleting docmap_source...\n");
+    printf("deleting docmap_source %ld...\n", self->docmap_source.use_count());
     self->docmap_source = NULL;
     printf("deleted docmap_source.\n");
   }
 
   printf("delete term_processor?\n");
   if (self->term_processor != NULL) {
-    printf("deleting term_processor...\n");
+    printf("deleting term_processor %ld...\n", self->docmap_source.use_count());
     self->term_processor = NULL;
     printf("deleted term_processor.\n");
   }
 
   printf("delete scorer?\n");
   if (self->scorer != NULL) {
-    printf("deleting scorer...\n");
+    printf("deleting scorer %ld...\n", self->docmap_source.use_count());
     self->scorer = NULL;
     printf("deleted scorer.\n");
   }
