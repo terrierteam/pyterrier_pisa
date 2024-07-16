@@ -92,62 +92,60 @@ static PyObject* RetrievalContext_new(PyTypeObject* type, PyObject* args, PyObje
 
 static void RetrievalContext_dealloc(RetrievalContext* self) {
 
-  printf("delete index?\n");
-  if (self->index != NULL) {
-    const char* encoding = self->encoding->c_str();
-    printf("deleting index...\n");
-    /**/
-    if (false) {  // NOLINT
-  #define LOOP_BODY(R, DATA, T)                                                                    \
-    }                                                                                              \
-    else if (strcmp(encoding, BOOST_PP_STRINGIZE(T)) == 0)                                         \
-    {                                                                                              \
-      printf("  %s\n", BOOST_PP_STRINGIZE(T));                                                     \
-      delete (BOOST_PP_CAT(T, _index)*)self->index;                                                \
-    /**/
-      BOOST_PP_SEQ_FOR_EACH(LOOP_BODY, _, PISA_INDEX_TYPES);
-  #undef LOOP_BODY
-    } else {
-      spdlog::error("(prepare_index) Unknown type {}", encoding);
-    }
-    self->index = NULL;
-    printf("deleted index.\n");
-  }
+  // printf("delete index?\n");
+  // if (self->index != NULL) {
+  //   const char* encoding = self->encoding->c_str();
+  //   printf("deleting index...\n");
+  //   /**/
+  //   if (false) {  // NOLINT
+  // #define LOOP_BODY(R, DATA, T)                                                                    \
+  //   }                                                                                              \
+  //   else if (strcmp(encoding, BOOST_PP_STRINGIZE(T)) == 0)                                         \
+  //   {                                                                                              \
+  //     printf("  %s\n", BOOST_PP_STRINGIZE(T));                                                     \
+  //     delete (BOOST_PP_CAT(T, _index)*)self->index;                                                \
+  //   /**/
+  //     BOOST_PP_SEQ_FOR_EACH(LOOP_BODY, _, PISA_INDEX_TYPES);
+  // #undef LOOP_BODY
+  //   } else {
+  //     spdlog::error("(prepare_index) Unknown type {}", encoding);
+  //   }
+  //   self->index = NULL;
+  //   printf("deleted index.\n");
+  // }
 
-  printf("delete wdata?\n");
-  if (self->wdata != NULL) {
-    printf("deleting wdata...\n");
-    delete self->wdata;
-    self->wdata = NULL;
-    printf("deleted wdata.\n");
-  }
+  // printf("delete wdata?\n");
+  // if (self->wdata != NULL) {
+  //   printf("deleting wdata...\n");
+  //   delete self->wdata;
+  //   self->wdata = NULL;
+  //   printf("deleted wdata.\n");
+  // }
 
-  printf("delete docmap_source?\n");
-  if (self->docmap_source != NULL) {
-    printf("deleting docmap_source %ld...\n", self->docmap_source.use_count());
-    self->docmap_source = NULL;
-    printf("deleted docmap_source.\n");
-  }
+  // printf("delete docmap_source?\n");
+  // if (self->docmap_source != NULL) {
+  //   printf("deleting docmap_source %ld...\n", self->docmap_source.use_count());
+  //   self->docmap_source = NULL;
+  //   printf("deleted docmap_source.\n");
+  // }
 
-  printf("delete term_processor?\n");
-  if (self->term_processor != NULL) {
-    printf("deleting term_processor %ld...\n", self->term_processor.use_count());
-    self->term_processor = NULL;
-    printf("deleted term_processor.\n");
-  }
+  // printf("delete term_processor?\n");
+  // if (self->term_processor != NULL) {
+  //   printf("deleting term_processor %ld...\n", self->term_processor.use_count());
+  //   self->term_processor = NULL;
+  //   printf("deleted term_processor.\n");
+  // }
 
-  printf("delete scorer?\n");
-  if (self->scorer != NULL) {
-    printf("deleting scorer %ld...\n", self->scorer.use_count());
-    self->scorer = NULL;
-    printf("deleted scorer.\n");
-  }
+  // printf("delete scorer?\n");
+  // if (self->scorer != NULL) {
+  //   printf("deleting scorer %ld...\n", self->scorer.use_count());
+  //   self->scorer = NULL;
+  //   printf("deleted scorer.\n");
+  // }
 
-  printf("deleting self...\n");
-  PyObject_GC_UnTrack(self);
-  Py_CLEAR(self->ref);
-  Py_TYPE(self)->tp_free((PyObject*)self);
-  printf("deleted self.\n");
+  // printf("deleting self...\n");
+  // Py_TYPE(self)->tp_free((PyObject*)self);
+  // printf("deleted self.\n");
 }
 
 
