@@ -71,9 +71,6 @@ using namespace pisa;
 namespace fs = boost::filesystem;
 
 
-static PyTypeObject RetrievalContextType;
-
-
 typedef struct {
     PyObject_HEAD
     void* index = NULL;
@@ -680,6 +677,21 @@ static PyObject *py_tokenize(PyObject *self, PyObject *args, PyObject *kwargs) {
   return py_toks;
 }
 
+static PyMethodDef RetrievalContext_methods[] = {
+  // Add your methods here
+  {NULL}  // Sentinel
+};
+
+static PyTypeObject RetrievalContextType = {
+  PyVarObject_HEAD_INIT(NULL, 0)
+  .tp_name = "pyterrier_pisa._pisathon.RetrievalContext",
+  .tp_basicsize = sizeof(RetrievalContext),
+  .tp_itemsize = 0,
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_new = RetrievalContext_new,
+  .tp_dealloc = (destructor)RetrievalContext_dealloc,
+  .tp_methods = RetrievalContext_methods,
+};
 
 static PyMethodDef pisathon_methods[] = {
   {"index", py_index, METH_VARARGS, "index"},
@@ -697,89 +709,30 @@ static PyMethodDef pisathon_methods[] = {
 //-----------------------------------------------------------------------------
 static struct PyModuleDef pisathon_module_def = {
   PyModuleDef_HEAD_INIT,
-  "_pisathon",
-  "Internal \"_pisathon\" module for pyterrier_pisa",
-  -1,
-  pisathon_methods
+  .m_name = "_pisathon",
+  .m_doc = "Internal \"_pisathon\" module for pyterrier_pisa",
+  .m_size = -1,
+  .m_methods = pisathon_methods,
 };
 
 PyMODINIT_FUNC PyInit__pisathon(void)
 {
-  try {
-    printf("PyInit 1\n");
-    PyObject* const module = PyModule_Create(&pisathon_module_def);
-    printf("PyInit 2\n");
-    if (module == NULL) {
-      printf("PyInit 2.fails\n");
-      throw std::runtime_error("Failed to create the _pisathon module.");
-    }
-    printf("PyInit 3\n");
+  PyObject* module;
 
-    PyTypeObject RetrievalContextType_local = {
-          PyVarObject_HEAD_INIT(NULL, 0)
-          "pyterrier_pisa._pisathon.RetrievalContext",   /* tp_name */
-          sizeof(RetrievalContext),         /* tp_basicsize */
-          0,                         /* tp_itemsize */
-          (destructor) RetrievalContext_dealloc, /* tp_dealloc */
-          0,                         /* tp_print */
-          0,                         /* tp_getattr */
-          0,                         /* tp_setattr */
-          0,                         /* tp_reserved */
-          0,                         /* tp_repr */
-          0,                         /* tp_as_number */
-          0,                         /* tp_as_sequence */
-          0,                         /* tp_as_mapping */
-          0,                         /* tp_hash */
-          0,                         /* tp_call */
-          0,                         /* tp_str */
-          0,                         /* tp_getattro */
-          0,                         /* tp_setattro */
-          0,                         /* tp_as_buffer */
-          Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
-          "RetrievalContext object",       /* tp_doc */
-          0,                         /* tp_traverse */
-          0,                         /* tp_clear */
-          0,                         /* tp_richcompare */
-          0,                         /* tp_weaklistoffset */
-          0,                         /* tp_iter */
-          0,                         /* tp_iternext */
-          0,                         /* tp_methods */
-          0,                         /* tp_members */
-          0,                         /* tp_getset */
-          0,                         /* tp_base */
-          0,                         /* tp_dict */
-          0,                         /* tp_descr_get */
-          0,                         /* tp_descr_set */
-          0,                         /* tp_dictoffset */
-          0,                         /* tp_init */
-          0,                         /* tp_alloc */
-          RetrievalContext_new,             /* tp_new */
-    };
-    printf("PyInit 4\n");
-    RetrievalContextType = RetrievalContextType_local;
-    printf("PyInit 5\n");
-    if (PyType_Ready(&RetrievalContextType) < 0) {
-      printf("PyInit 5.fails\n");
-      throw std::runtime_error("Failed to create the RetrievalContextType.");
-    }
-    printf("PyInit 6\n");
-    Py_INCREF(&RetrievalContextType);
-    printf("PyInit 7\n");
-    PyModule_AddObject(module, "RetrievalContext", (PyObject*) &RetrievalContextType);
-    printf("PyInit 8\n");
-    return module;
-  } catch (const std::exception &e) {
-    printf("PyInit catch1\n");
-    if (!PyErr_Occurred()) {
-      printf("PyInit catch1.%s\n", e.what());
-      PyErr_SetString(PyExc_RuntimeError, e.what());
-    }
+  if (PyType_Ready(&RetrievalContextType) < 0)
     return NULL;
-  } catch (...) {
-    printf("PyInit catch2\n");
-    if (!PyErr_Occurred()) {
-      PyErr_SetString(PyExc_RuntimeError, "An unknown error occurred during module initialization");
-    }
+
+  module = PyModule_Create(&pisathon_module_def);
+  if (module == NULL)
+      return NULL;
+
+  Py_INCREF(&RetrievalContextType);
+
+  if (PyModule_AddObject(module, "RetrievalContext", (PyObject*)&RetrievalContextType) < 0) {
+    Py_DECREF(&RetrievalContextType);
+    Py_DECREF(module);
     return NULL;
   }
+
+  return module;
 }
