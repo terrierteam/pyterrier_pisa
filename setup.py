@@ -1,24 +1,31 @@
 import shutil
 from pathlib import Path
-import sys
 import os
 from setuptools import find_packages
 from skbuild import setup
 import skbuild
-import zipfile
-import numpy as np
+
+
+def get_version(path):
+    for line in open(path, 'rt'):
+        if line.startswith('__version__'):
+            delim = '"' if '"' in line else "'"
+            return line.split(delim)[1]
+    else:
+        raise RuntimeError("Unable to find version string.")
 
 
 class bdist_wheel(skbuild.command.bdist_wheel.bdist_wheel):
   def run(self):
     res = super().run()
-    wheel = self.distribution.dist_files[0][2]
+    # wheel = self.distribution.dist_files[0][2]
     pisathon_so = list((Path(self.distribution.package_dir['pyterrier_pisa']).parent.parent).glob('**/_pisathon*.so'))[0]
-    lib_tbb = list((Path(self.distribution.package_dir['pyterrier_pisa']).parent.parent.parent).glob('**/libtbb.so.2'))[0]
-    print(f'patching wheel with {pisathon_so} and {lib_tbb}')
+    # lib_tbb = list((Path(self.distribution.package_dir['pyterrier_pisa']).parent.parent.parent).glob('**/libtbb.so.2'))[0]
+    # print(f'patching wheel with {pisathon_so} and {lib_tbb}')
+    print(f'patching wheel with {pisathon_so}')
     base_path = Path('/tmp/libtbb' if os.environ.get("PT_PISA_MANYLINUX", "False") == "True" else '_skbuild/libtbb')
     base_path.mkdir(exist_ok=True, parents=True)
-    shutil.copy(lib_tbb, base_path/lib_tbb.name)
+    # shutil.copy(lib_tbb, base_path/lib_tbb.name)
     shutil.copy(pisathon_so, base_path/pisathon_so.name)
     return res
 
@@ -27,7 +34,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="pyterrier_pisa",
-    version="0.1.1" + os.environ.get('PT_PISA_VERSION_SUFFIX', ''),
+    version=get_version("src/pyterrier_pisa/__init__.py") + os.environ.get('PT_PISA_VERSION_SUFFIX', ''),
     description="A PyTerrier interface to the PISA search engine",
     long_description=long_description,
     long_description_content_type="text/markdown",

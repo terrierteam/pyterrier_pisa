@@ -19,7 +19,7 @@ from . import _pisathon
 from .indexers import PisaIndexer, PisaToksIndexer, PisaIndexingMode
 from .stopwords import _STOPWORDS
 
-__version__ = '0.1.1'
+__version__ = '0.2.0'
 
 _logger = ir_datasets.log.easy()
 
@@ -103,7 +103,7 @@ class PisaIndex(pta.Artifact, pt.Indexer):
       index_encoding: Optional[Union[PisaIndexEncoding, str]] = None,
       batch_size: int = 100_000,
       stops: Optional[Union[PisaStopwords, List[str]]] = None,
-      threads: int = 8,
+      threads: int = 1,
       overwrite=False):
     super().__init__(path)
     if stemmer is not None: stemmer = PisaStemmer(stemmer)
@@ -270,7 +270,7 @@ class PisaRetrieve(pt.Transformer):
     self.verbose = verbose
     self.threads = threads or self.index.threads
     if stops is None:
-      stpps = self.index.stops
+      stops = self.index.stops
     self.stops = PisaStopwords(stops)
     if query_algorithm is None:
       query_algorithm = PISA_INDEX_DEFAULTS['query_algorithm']
@@ -280,17 +280,40 @@ class PisaRetrieve(pt.Transformer):
     else:
       self.query_weighted = query_weighted
     self.toks_scale = toks_scale
-    _pisathon.prepare_index(str(self.index.path), encoding=self.index.index_encoding.value, scorer_name=self.scorer.value, **retr_args)
+    self._ctxt = None
+    self._ctxt_key = None
+    self.reset_retrieval_context()
+
+  def reset_retrieval_context(self, force=False):
+    key = [
+      str(self.index.path), self.index.index_encoding, self.scorer, self.index.stemmer, self.stops, self.query_weighted,
+    ]
+    for k, v in sorted(self.retr_args.items()):
+      key.extend([k, v])
+    key = tuple(key)
+    if force or self._ctxt_key != key:
+      self._ctxt = _pisathon.RetrievalContext()
+      with tempfile.TemporaryDirectory() as d:
+        _pisathon.prepare_index(
+          self._ctxt,
+          str(self.index.path),
+          self.index.index_encoding.value,
+          self.scorer.value,
+          '' if self.index.stemmer == PisaStemmer.none else self.index.stemmer.value,
+          stop_fname=self._stops_fname(d),
+          **self.retr_args)
+      self._ctxt_key = key
 
   def transform(self, queries):
     assert 'qid' in queries.columns
     assert 'query' in queries.columns or 'query_toks' in queries.columns
+    self.reset_retrieval_context()
     inp = []
     if 'query_toks' in queries.columns:
       pretok = True
       for i, toks_dict in enumerate(queries['query_toks']):
         if not isinstance(toks_dict, dict):
-          raise TypeError("query_toks column should be a dictionary (qid %s)" % qid)
+          raise TypeError("query_toks column should be a dictionary")
         toks_dict = {str(k): float(v * self.toks_scale) for k, v in toks_dict.items()} # force keys and str, vals as float, apply toks_scale
         inp.append((i, toks_dict))
     else:
@@ -299,29 +322,25 @@ class PisaRetrieve(pt.Transformer):
 
     if self.verbose:
       inp = tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
-    with tempfile.TemporaryDirectory() as d:
-      shape = (len(queries) * self.num_results,)
-      result_qidxs = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
-      result_docnos = np.ascontiguousarray(np.empty(shape, dtype=object))
-      result_ranks = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
-      result_scores = np.ascontiguousarray(np.empty(shape, dtype=np.float32))
-      size = _pisathon.retrieve(
-        str(self.index.path),
-        self.index.index_encoding.value,
-        self.query_algorithm.value,
-        self.scorer.value,
-        '' if self.index.stemmer == PisaStemmer.none else self.index.stemmer.value,
-        inp,
-        k=self.num_results,
-        threads=self.threads,
-        stop_fname=self._stops_fname(d),
-        query_weighted=1 if self.query_weighted else 0,
-        pretokenised=pretok,
-        result_qidxs=result_qidxs,
-        result_docnos=result_docnos,
-        result_ranks=result_ranks,
-        result_scores=result_scores,
-        **self.retr_args)
+    # with tempfile.TemporaryDirectory() as d:
+    shape = (len(queries) * self.num_results,)
+    result_qidxs = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
+    result_docnos = np.ascontiguousarray(np.empty(shape, dtype=object))
+    result_ranks = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
+    result_scores = np.ascontiguousarray(np.empty(shape, dtype=np.float32))
+    size = _pisathon.retrieve(
+      self._ctxt,
+      self.query_algorithm.value,
+      inp,
+      k=self.num_results,
+      threads=self.threads,
+      query_weighted=1 if self.query_weighted else 0,
+      pretokenised=pretok,
+      result_qidxs=result_qidxs,
+      result_docnos=result_docnos,
+      result_ranks=result_ranks,
+      result_scores=result_scores,
+    )
     result = queries.iloc[result_qidxs[:size]].reset_index(drop=True)
     result['docno'] = result_docnos[:size]
     result['score'] = result_scores[:size]
