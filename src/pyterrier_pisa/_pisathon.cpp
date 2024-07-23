@@ -677,8 +677,8 @@ static PyObject *py_tokenize(PyObject *self, PyObject *args, PyObject *kwargs) {
   return py_toks;
 }
 
+
 static PyMethodDef RetrievalContext_methods[] = {
-  // Add your methods here
   {NULL}  // Sentinel
 };
 
@@ -687,23 +687,23 @@ static PyTypeObject RetrievalContextType = {
   .tp_name = "pyterrier_pisa._pisathon.RetrievalContext",
   .tp_basicsize = sizeof(RetrievalContext),
   .tp_itemsize = 0,
-  .tp_flags = Py_TPFLAGS_DEFAULT,
-  .tp_new = RetrievalContext_new,
   .tp_dealloc = (destructor)RetrievalContext_dealloc,
+  .tp_flags = Py_TPFLAGS_DEFAULT,
   .tp_methods = RetrievalContext_methods,
+  .tp_new = RetrievalContext_new,
 };
 
 static PyMethodDef pisathon_methods[] = {
-  {"index", py_index, METH_VARARGS, "index"},
-  {"merge_inv", py_merge_inv, METH_VARARGS, "merge_inv"},
-  {"prepare_index", (PyCFunction) py_prepare_index, METH_VARARGS | METH_KEYWORDS, "prepare_index"},
-  {"retrieve", (PyCFunction)py_retrieve, METH_VARARGS | METH_KEYWORDS, "retrieve"},
-  {"num_terms", (PyCFunction)py_num_terms, METH_VARARGS, "num_terms"},
-  {"num_docs", (PyCFunction)py_num_docs, METH_VARARGS, "num_docs"},
-  {"log_level", (PyCFunction)py_log_level, METH_VARARGS, "log_level"},
-  {"build_binlex", (PyCFunction)py_build_binlex, METH_VARARGS, "build_binlex"},
-  {"tokenize", (PyCFunction)py_tokenize, METH_VARARGS, "tokenize"},
-  {NULL, NULL, 0, NULL}        /* Sentinel */
+  {"index",         (PyCFunction)py_index,         METH_VARARGS, "index"},
+  {"merge_inv",     (PyCFunction)py_merge_inv,     METH_VARARGS, "merge_inv"},
+  {"prepare_index", (PyCFunction)py_prepare_index, METH_VARARGS | METH_KEYWORDS, "prepare_index"},
+  {"retrieve",      (PyCFunction)py_retrieve,      METH_VARARGS | METH_KEYWORDS, "retrieve"},
+  {"num_terms",     (PyCFunction)py_num_terms,     METH_VARARGS, "num_terms"},
+  {"num_docs",      (PyCFunction)py_num_docs,      METH_VARARGS, "num_docs"},
+  {"log_level",     (PyCFunction)py_log_level,     METH_VARARGS, "log_level"},
+  {"build_binlex",  (PyCFunction)py_build_binlex,  METH_VARARGS, "build_binlex"},
+  {"tokenize",      (PyCFunction)py_tokenize,      METH_VARARGS, "tokenize"},
+  {NULL, NULL, 0, NULL}  // Sentinel
 };
 
 //-----------------------------------------------------------------------------
