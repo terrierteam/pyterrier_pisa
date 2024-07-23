@@ -1,16 +1,8 @@
 name: Upload Python Package
 
 on:
-  workflow_dispatch:
-    inputs:
-      releasetype:
-        description: "test or release?"
-        required: true
-        default: 'test'
-      version_suffix:
-        description: "Version suffix"
-        required: false
-        default: ''
+  release:
+    types: [created]
 
 jobs:
   deploy-bdist:
