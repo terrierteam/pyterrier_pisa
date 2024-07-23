@@ -1,14 +1,6 @@
-// Python includes
 #include <Python.h>
-
-
 #include <boost/filesystem.hpp>
-
-
-
-// STD includes
 #include <stdio.h>
-
 #include <forward_index_builder.hpp>
 #include <parser.hpp>
 #include <query/term_processor.hpp>
@@ -18,8 +10,6 @@
 #include <tbb/global_control.h>
 #include <tbb/task_group.h>
 #include <tbb/spin_mutex.h>
-
-//#include <app.hpp>
 #include <binary_collection.hpp>
 #include <util/util.hpp>
 #include <boost/algorithm/string.hpp>
@@ -31,7 +21,6 @@
 #include <query/term_processor.hpp>
 #include <wand_data.hpp>
 #include <wand_utils.hpp>
-
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <functional>
@@ -42,7 +31,6 @@
 #include <spdlog/spdlog.h>
 #include <tbb/global_control.h>
 #include <tbb/parallel_for.h>
-
 #include <accumulator/lazy_accumulator.hpp>
 #include <cursor/block_max_scored_cursor.hpp>
 #include <cursor/max_scored_cursor.hpp>
@@ -56,10 +44,7 @@
 #include <util/util.hpp>
 #include <wand_data_compressed.hpp>
 #include <wand_data_raw.hpp>
-
-
 #include <reorder_docids.hpp>
-
 #include <spdlog/sinks/null_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
@@ -70,6 +55,11 @@ using ranges::views::enumerate;
 using namespace pisa;
 namespace fs = boost::filesystem;
 
+
+
+//---------------------------------------------------------------------------------------------------------
+//                    RetrievalContext
+//---------------------------------------------------------------------------------------------------------
 
 typedef struct {
     PyObject_HEAD
@@ -89,62 +79,67 @@ static PyObject* RetrievalContext_new(PyTypeObject* type, PyObject* args, PyObje
 
 static void RetrievalContext_dealloc(RetrievalContext* self) {
 
-  // printf("delete index?\n");
-  // if (self->index != NULL) {
-  //   const char* encoding = self->encoding->c_str();
-  //   printf("deleting index...\n");
-  //   /**/
-  //   if (false) {  // NOLINT
-  // #define LOOP_BODY(R, DATA, T)                                                                    \
-  //   }                                                                                              \
-  //   else if (strcmp(encoding, BOOST_PP_STRINGIZE(T)) == 0)                                         \
-  //   {                                                                                              \
-  //     printf("  %s\n", BOOST_PP_STRINGIZE(T));                                                     \
-  //     delete (BOOST_PP_CAT(T, _index)*)self->index;                                                \
-  //   /**/
-  //     BOOST_PP_SEQ_FOR_EACH(LOOP_BODY, _, PISA_INDEX_TYPES);
-  // #undef LOOP_BODY
-  //   } else {
-  //     spdlog::error("(prepare_index) Unknown type {}", encoding);
-  //   }
-  //   self->index = NULL;
-  //   printf("deleted index.\n");
-  // }
+  printf("delete index?\n");
+  if (self->index != NULL) {
+    const char* encoding = self->encoding->c_str();
+    printf("deleting index...\n");
+    /**/
+    if (false) {  // NOLINT
+  #define LOOP_BODY(R, DATA, T)                                                                    \
+    }                                                                                              \
+    else if (strcmp(encoding, BOOST_PP_STRINGIZE(T)) == 0)                                         \
+    {                                                                                              \
+      printf("  %s\n", BOOST_PP_STRINGIZE(T));                                                     \
+      delete (BOOST_PP_CAT(T, _index)*)self->index;                                                \
+    /**/
+      BOOST_PP_SEQ_FOR_EACH(LOOP_BODY, _, PISA_INDEX_TYPES);
+  #undef LOOP_BODY
+    } else {
+      spdlog::error("(prepare_index) Unknown type {}", encoding);
+    }
+    self->index = NULL;
+    printf("deleted index.\n");
+  }
 
-  // printf("delete wdata?\n");
-  // if (self->wdata != NULL) {
-  //   printf("deleting wdata...\n");
-  //   delete self->wdata;
-  //   self->wdata = NULL;
-  //   printf("deleted wdata.\n");
-  // }
+  printf("delete wdata?\n");
+  if (self->wdata != NULL) {
+    printf("deleting wdata...\n");
+    delete self->wdata;
+    self->wdata = NULL;
+    printf("deleted wdata.\n");
+  }
 
-  // printf("delete docmap_source?\n");
-  // if (self->docmap_source != NULL) {
-  //   printf("deleting docmap_source %ld...\n", self->docmap_source.use_count());
-  //   self->docmap_source = NULL;
-  //   printf("deleted docmap_source.\n");
-  // }
+  printf("delete docmap_source?\n");
+  if (self->docmap_source != NULL) {
+    printf("deleting docmap_source %ld...\n", self->docmap_source.use_count());
+    self->docmap_source = NULL;
+    printf("deleted docmap_source.\n");
+  }
 
-  // printf("delete term_processor?\n");
-  // if (self->term_processor != NULL) {
-  //   printf("deleting term_processor %ld...\n", self->term_processor.use_count());
-  //   self->term_processor = NULL;
-  //   printf("deleted term_processor.\n");
-  // }
+  printf("delete term_processor?\n");
+  if (self->term_processor != NULL) {
+    printf("deleting term_processor %ld...\n", self->term_processor.use_count());
+    self->term_processor = NULL;
+    printf("deleted term_processor.\n");
+  }
 
-  // printf("delete scorer?\n");
-  // if (self->scorer != NULL) {
-  //   printf("deleting scorer %ld...\n", self->scorer.use_count());
-  //   self->scorer = NULL;
-  //   printf("deleted scorer.\n");
-  // }
+  printf("delete scorer?\n");
+  if (self->scorer != NULL) {
+    printf("deleting scorer %ld...\n", self->scorer.use_count());
+    self->scorer = NULL;
+    printf("deleted scorer.\n");
+  }
 
-  // printf("deleting self...\n");
-  // Py_TYPE(self)->tp_free((PyObject*)self);
-  // printf("deleted self.\n");
+  printf("deleting self...\n");
+  Py_TYPE(self)->tp_free((PyObject*)self);
+  printf("deleted self.\n");
 }
 
+
+
+//---------------------------------------------------------------------------------------------------------
+//                    Indexing/Retrieval Lifecycle
+//---------------------------------------------------------------------------------------------------------
 
 static PyObject *py_index(PyObject *self, PyObject *args) {
   const char* fin;
@@ -198,46 +193,6 @@ static PyObject *py_index(PyObject *self, PyObject *args) {
 
   Py_END_ALLOW_THREADS
   Py_RETURN_NONE;
-}
-
-
-static PyObject *py_merge_inv(PyObject *self, PyObject *args) {
-  const char* fin;
-  int batch_count;
-  int term_count;
-
-  /* Parse arguments */
-  if(!PyArg_ParseTuple(args, "sii", &fin, &batch_count, &term_count)) {
-      return NULL;
-  }
-
-  pisa::invert::merge_batches(fin, batch_count, term_count);
-
-  Py_RETURN_NONE;
-}
-
-
-static PyObject *py_num_terms(PyObject *self, PyObject *args, PyObject *kwargs) {
-  const char* index_dir;
-  if(!PyArg_ParseTuple(args, "s", &index_dir)) {
-      return NULL;
-  }
-  fs::path f_index_dir (index_dir);
-  auto term_lexicon_file = (f_index_dir/"fwd.termlex").string();
-  mio::mmap_source mfile(term_lexicon_file.c_str());
-  auto lexicon = pisa::Payload_Vector<>::from(mfile);
-  return PyLong_FromUnsignedLong(lexicon.size());
-}
-
-
-static PyObject *py_num_docs(PyObject *self, PyObject *args, PyObject *kwargs) {
-  const char* index_dir;
-  if(!PyArg_ParseTuple(args, "s", &index_dir)) {
-      return NULL;
-  }
-  fs::path f_index_dir (index_dir);
-  binary_freq_collection input_collection((f_index_dir/"inv").string().c_str());
-  return PyLong_FromUnsignedLong(input_collection.num_docs());
 }
 
 
@@ -623,6 +578,27 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
 }
 
 
+
+//---------------------------------------------------------------------------------------------------------
+//                    LSR Indexing Hacks
+//---------------------------------------------------------------------------------------------------------
+
+static PyObject *py_merge_inv(PyObject *self, PyObject *args) {
+  const char* fin;
+  int batch_count;
+  int term_count;
+
+  /* Parse arguments */
+  if(!PyArg_ParseTuple(args, "sii", &fin, &batch_count, &term_count)) {
+      return NULL;
+  }
+
+  pisa::invert::merge_batches(fin, batch_count, term_count);
+
+  Py_RETURN_NONE;
+}
+
+
 static PyObject *py_build_binlex(PyObject *self, PyObject *args, PyObject *kwargs) {
   const char* term_file;
   const char* termlex_file;
@@ -642,18 +618,10 @@ static PyObject *py_build_binlex(PyObject *self, PyObject *args, PyObject *kwarg
 }
 
 
-static PyObject *py_log_level(PyObject *self, PyObject *args, PyObject *kwargs) {
-  int level;
-  if(!PyArg_ParseTuple(args, "i", &level)) {
-      return NULL;
-  }
-  if (level == 0) {
-    spdlog::set_default_logger(spdlog::create<spdlog::sinks::null_sink_mt>("stderr"));
-  } else {
-    spdlog::set_default_logger(spdlog::stderr_color_mt("stderr"));
-  }
-  Py_RETURN_NONE;
-}
+
+//---------------------------------------------------------------------------------------------------------
+//                    Extras
+//---------------------------------------------------------------------------------------------------------
 
 static PyObject *py_tokenize(PyObject *self, PyObject *args, PyObject *kwargs) {
   const char* stemmer;
@@ -678,6 +646,35 @@ static PyObject *py_tokenize(PyObject *self, PyObject *args, PyObject *kwargs) {
 }
 
 
+static PyObject *py_num_terms(PyObject *self, PyObject *args, PyObject *kwargs) {
+  const char* index_dir;
+  if(!PyArg_ParseTuple(args, "s", &index_dir)) {
+      return NULL;
+  }
+  fs::path f_index_dir (index_dir);
+  auto term_lexicon_file = (f_index_dir/"fwd.termlex").string();
+  mio::mmap_source mfile(term_lexicon_file.c_str());
+  auto lexicon = pisa::Payload_Vector<>::from(mfile);
+  return PyLong_FromUnsignedLong(lexicon.size());
+}
+
+
+static PyObject *py_num_docs(PyObject *self, PyObject *args, PyObject *kwargs) {
+  const char* index_dir;
+  if(!PyArg_ParseTuple(args, "s", &index_dir)) {
+      return NULL;
+  }
+  fs::path f_index_dir (index_dir);
+  binary_freq_collection input_collection((f_index_dir/"inv").string().c_str());
+  return PyLong_FromUnsignedLong(input_collection.num_docs());
+}
+
+
+
+//---------------------------------------------------------------------------------------------------------
+//                    Module Init
+//---------------------------------------------------------------------------------------------------------
+
 static PyMethodDef RetrievalContext_methods[] = {
   {NULL}  // Sentinel
 };
@@ -694,23 +691,21 @@ static PyTypeObject RetrievalContextType = {
 };
 
 static PyMethodDef pisathon_methods[] = {
-  {"index",         (PyCFunction)py_index,         METH_VARARGS, "index"},
-  {"merge_inv",     (PyCFunction)py_merge_inv,     METH_VARARGS, "merge_inv"},
+  {"index",         (PyCFunction)py_index,         METH_VARARGS,                 "index"},
+  {"merge_inv",     (PyCFunction)py_merge_inv,     METH_VARARGS,                 "merge_inv"},
   {"prepare_index", (PyCFunction)py_prepare_index, METH_VARARGS | METH_KEYWORDS, "prepare_index"},
   {"retrieve",      (PyCFunction)py_retrieve,      METH_VARARGS | METH_KEYWORDS, "retrieve"},
-  {"num_terms",     (PyCFunction)py_num_terms,     METH_VARARGS, "num_terms"},
-  {"num_docs",      (PyCFunction)py_num_docs,      METH_VARARGS, "num_docs"},
-  {"log_level",     (PyCFunction)py_log_level,     METH_VARARGS, "log_level"},
-  {"build_binlex",  (PyCFunction)py_build_binlex,  METH_VARARGS, "build_binlex"},
-  {"tokenize",      (PyCFunction)py_tokenize,      METH_VARARGS, "tokenize"},
+  {"num_terms",     (PyCFunction)py_num_terms,     METH_VARARGS,                 "num_terms"},
+  {"num_docs",      (PyCFunction)py_num_docs,      METH_VARARGS,                 "num_docs"},
+  {"build_binlex",  (PyCFunction)py_build_binlex,  METH_VARARGS,                 "build_binlex"},
+  {"tokenize",      (PyCFunction)py_tokenize,      METH_VARARGS,                 "tokenize"},
   {NULL, NULL, 0, NULL}  // Sentinel
 };
 
-//-----------------------------------------------------------------------------
 static struct PyModuleDef pisathon_module_def = {
   PyModuleDef_HEAD_INIT,
   .m_name = "_pisathon",
-  .m_doc = "Internal \"_pisathon\" module for pyterrier_pisa",
+  .m_doc = "Internal _pisathon module for pyterrier_pisa",
   .m_size = -1,
   .m_methods = pisathon_methods,
 };
