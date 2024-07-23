@@ -31,15 +31,7 @@ jobs:
         CIBW_BUILD: 'cp38-manylinux_x86_64 cp39-manylinux_x86_64 cp310-manylinux_x86_64 cp311-manylinux_x86_64'
         CIBW_REPAIR_WHEEL_COMMAND: 'auditwheel repair -w {dest_dir} {wheel} ; python patcher.py {dest_dir}'
         CIBW_ENVIRONMENT: 'PT_PISA_VERSION_SUFFIX="${{github.event.inputs.version_suffix}}" PT_PISA_MANYLINUX="True"'
-    - name: upload Test
-      if: github.event.inputs.releasetype == 'test'
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_TEST_PASSWORD }}
-      run: |
-        twine upload --repository testpypi wheelhouse/*
     - name: upload Release
-      if: github.event.inputs.releasetype == 'release'
       env:
         TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
         TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
