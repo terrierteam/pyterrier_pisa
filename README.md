@@ -246,7 +246,7 @@ was used when building the index. If it's a stemmer that's not supported by PISA
 ## References
 
  - [Mallia19]: Antonio Mallia, Michal Siedlaczek, Joel Mackenzie, Torsten Suel. PISA: Performant Indexes and Search for Academia. Proceedings of the Open-Source IR Replicability Challenge. http://ceur-ws.org/Vol-2409/docker08.pdf
- - [MacAvaney22]: Sean MacAvaney, Craig Macdonald. A Python Interface to PISA!. Proceedings of SIGIR 2022.
+ - [MacAvaney22]: Sean MacAvaney, Craig Macdonald. A Python Interface to PISA!. Proceedings of SIGIR 2022. https://dl.acm.org/doi/abs/10.1145/3477495.3531656
  - [Macdonald21]: Craig Macdonald, Nicola Tonellotto, Sean MacAvaney, Iadh Ounis. PyTerrier: Declarative Experimentation in Python from BM25 to Dense Retrieval. Proceedings of CIKM 2021. https://dl.acm.org/doi/abs/10.1145/3459637.3482013
 
 ## Credits
