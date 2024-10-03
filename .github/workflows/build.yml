@@ -8,10 +8,11 @@ jobs:
   deploy-bdist:
     runs-on: ubuntu-20.04
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         submodules: recursive
-    - uses: actions/setup-python@v2
+
+    - uses: actions/setup-python@v5
       with:
         python-version: '3.x'
     - name: install-deps
