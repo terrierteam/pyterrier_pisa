@@ -18,8 +18,6 @@ You can easily index corpora from PyTerrier datasets:
 
 ```python
 import pyterrier as pt
-if not pt.started():
-  pt.init()
 from pyterrier_pisa import PisaIndex
 
 # from a dataset
