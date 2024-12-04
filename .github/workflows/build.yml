@@ -33,11 +33,11 @@ jobs:
         CIBW_ENVIRONMENT: 'PT_PISA_VERSION_SUFFIX="${{github.event.inputs.version_suffix}}" PT_PISA_MANYLINUX="True"'
     - name: upload Release
       env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
       run: |
         twine upload wheelhouse/*
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v4
       with:
         name: bdist-manylinux2010
         path: wheelhouse/*
