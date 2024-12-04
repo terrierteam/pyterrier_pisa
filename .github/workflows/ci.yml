@@ -49,9 +49,10 @@ jobs:
 
     - uses: actions/upload-artifact@v4
       with:
-        name: bdist-manylinux2010
+        name: bdist-manylinux2010-py${{ matrix.python-version }}
         path: dist/*.whl
     
     - name: Run tests
       run: |
+        python -c "import nltk ; nltk.download('punkt_tab')"
         pytest tests/
