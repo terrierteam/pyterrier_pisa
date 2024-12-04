@@ -54,4 +54,5 @@ jobs:
     
     - name: Run tests
       run: |
+        python -c "import nltk ; nltk.download('punkt_tab')"
         pytest tests/
