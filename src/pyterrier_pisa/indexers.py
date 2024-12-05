@@ -87,26 +87,26 @@ class PisaToksIndexer(PisaIndexer):
         inv_score = defaultdict(list)
         lens = []
         for doc in batch:
-          l = 0
+          doclen = 0
           f_docs.write(doc['docno']+'\n')
           for term, score in doc[self.text_field].items():
             score = int(score * self.scale)
             if score <= 0:
               continue
-            l += score
+            doclen += score
             if term not in lexicon:
               lexicon[term] = len(lexicon)
               f_lex.write(term+'\n')
             inv_did[lexicon[term]].append(docid)
             inv_score[lexicon[term]].append(int(score))
-          lens.append(l)
+          lens.append(doclen)
           docid += 1
         with (path/f'inv.batch.{bidx}.docs').open('wb') as f_did, (path/f'inv.batch.{bidx}.freqs').open('wb') as f_score, (path/f'inv.batch.{bidx}.sizes').open('wb') as f_len:
           f_did.write(np.array([1, len(batch)], dtype=np.uint32).tobytes())
           for i in range(len(lexicon)):
-            l = len(inv_did[i])
-            f_did.write(np.array([l] + inv_did[i], dtype=np.uint32).tobytes())
-            f_score.write(np.array([l] + inv_score[i], dtype=np.uint32).tobytes())
+            doclen = len(inv_did[i])
+            f_did.write(np.array([doclen] + inv_did[i], dtype=np.uint32).tobytes())
+            f_score.write(np.array([doclen] + inv_score[i], dtype=np.uint32).tobytes())
           f_len.write(np.array([len(lens)] + lens, dtype=np.uint32).tobytes())
     _pisathon.merge_inv(str(path/'inv'), bidx+1, len(lexicon))
     for i in range(bidx+1):
@@ -128,9 +128,9 @@ class PisaToksIndexer(PisaIndexer):
       for term in _logger.pbar(sorted(lexicon), desc='re-mapping term ids'):
         f_lex.write(f'{term}\n')
         i = lexicon[term]
-        start, l = offsets_lens[i]
-        f_docs.write(in_docs[start:start+l])
-        f_freqs.write(in_freqs[start:start+l])
+        start, doclen = offsets_lens[i]
+        f_docs.write(in_docs[start:start+doclen])
+        f_freqs.write(in_freqs[start:start+doclen])
     del in_docs # close mmap
     del in_freqs # close mmap
     (path/'inv.docs.tmp').unlink()
