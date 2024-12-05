@@ -1,7 +1,6 @@
 from typing import List
 import numpy as np
 import json
-import sys
 from pathlib import Path
 import tempfile
 import os
@@ -121,9 +120,12 @@ class PisaIndex(pta.Artifact, pt.Indexer):
       overwrite: If True, the index will be overwritten if it already exists. Defaults to False.
     """
     super().__init__(path)
-    if stemmer is not None: stemmer = PisaStemmer(stemmer)
-    if index_encoding is not None: index_encoding = PisaIndexEncoding(index_encoding)
-    if stops is not None and not isinstance(stops, list): stops = PisaStopwords(stops)
+    if stemmer is not None:
+      stemmer = PisaStemmer(stemmer)
+    if index_encoding is not None:
+      index_encoding = PisaIndexEncoding(index_encoding)
+    if stops is not None and not isinstance(stops, list):
+      stops = PisaStopwords(stops)
     if (_old_metadata := (self.path/'pt_pisa_config.json').exists()) or (self.path/'pt_meta.json').exists():
       if _old_metadata:
         with (self.path/'pt_pisa_config.json').open('rt') as fin:
@@ -135,9 +137,12 @@ class PisaIndex(pta.Artifact, pt.Indexer):
         stemmer = PisaStemmer(config['stemmer'])
       if stemmer.value != config['stemmer']:
         warn(f'requested stemmer={stemmer.value}, but index was constructed with {config["stemmer"]}')
-    if stemmer is None: stemmer = PISA_INDEX_DEFAULTS['stemmer']
-    if index_encoding is None: index_encoding = PISA_INDEX_DEFAULTS['index_encoding']
-    if stops is None: stops = PISA_INDEX_DEFAULTS['stops']
+    if stemmer is None:
+      stemmer = PISA_INDEX_DEFAULTS['stemmer']
+    if index_encoding is None:
+      index_encoding = PISA_INDEX_DEFAULTS['index_encoding']
+    if stops is None:
+      stops = PISA_INDEX_DEFAULTS['stops']
     self.text_field = text_field
     self.stemmer = stemmer
     self.index_encoding = index_encoding
@@ -329,7 +334,7 @@ class PisaIndex(pta.Artifact, pt.Indexer):
     assert self.built()
     assert (self.path/'fwd').exists(), "get_corpus_iter requires a fwd index"
     m = np.memmap(self.path/'fwd', mode='r', dtype=np.uint32)
-    lexicon = [l.strip() for l in (self.path/'fwd.terms').open('rt')]
+    lexicon = [term.strip() for term in (self.path/'fwd.terms').open('rt')]
     idx = 2
     it = iter((self.path/'fwd.documents').open('rt'))
     if verbose:
