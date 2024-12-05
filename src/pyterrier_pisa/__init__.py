@@ -19,7 +19,7 @@ from . import _pisathon
 from .indexers import PisaIndexer, PisaToksIndexer, PisaIndexingMode
 from .stopwords import _STOPWORDS
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 
 _logger = ir_datasets.log.easy()
 
