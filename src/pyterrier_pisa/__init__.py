@@ -7,7 +7,7 @@ import tempfile
 import os
 import more_itertools
 from warnings import warn
-from typing import Optional, Union, List
+from typing import Optional, Union, Iterable, Dict
 from enum import Enum
 from collections import Counter
 from tqdm import tqdm
@@ -96,6 +96,10 @@ def log_level(on=True):
 
 
 class PisaIndex(pta.Artifact, pt.Indexer):
+  """Represents a PISA index.
+
+  This object acts as a factory for indexing and retrieval transformers over the index.
+  """
   def __init__(self,
       path: str,
       text_field: str = None,
@@ -105,6 +109,17 @@ class PisaIndex(pta.Artifact, pt.Indexer):
       stops: Optional[Union[PisaStopwords, List[str]]] = None,
       threads: int = 1,
       overwrite=False):
+    """
+    Args:
+      path: The path to the PISA index
+      text_field: The field to use for indexing. If None, all string fields are concatenated.
+      stemmer: The stemmer to use. Defaults to ``porter2`` for new indexes and the stemmer used for construction for existing indexes
+      index_encoding: The index encoding to use. Defaults to ``block_simdbp``.
+      batch_size: The batch size to use during indexing. Defaults to 100,000.
+      stops: The stopword list to use. Defaults to the Terrier stopword list.
+      threads: The number of threads to use during indexing and retrieval. Defaults to 1.
+      overwrite: If True, the index will be overwritten if it already exists. Defaults to False.
+    """
     super().__init__(path)
     if stemmer is not None: stemmer = PisaStemmer(stemmer)
     if index_encoding is not None: index_encoding = PisaIndexEncoding(index_encoding)
@@ -135,9 +150,11 @@ class PisaIndex(pta.Artifact, pt.Indexer):
     raise RuntimeError(f'You cannot use {self} itself as a transformer. Did you mean to call a ranking function like .bm25()?')
 
   def built(self):
+    """Returns True if the index has been built."""
     return (self.path/'pt_meta.json').exists() or (self.path/'pt_pisa_config.json').exists()
 
-  def index(self, it):
+  def index(self, it: Iterable[Dict]):
+    """Indexes a collection of documents."""
     it = more_itertools.peekable(it)
     first_doc = it.peek()
     text_field = self.text_field
@@ -148,7 +165,7 @@ class PisaIndex(pta.Artifact, pt.Indexer):
         warn(f'text_field not specified; using pre-tokenized field {repr(text_field)}')
       else:
         text_field = [k for k, v in sorted(first_doc.items()) if isinstance(v, str) and k != 'docno']
-        assert len(text_field) >= 1, f"no str or toks fields found in document. Fields: {k: type(v) for k, v in first_doc.items()}"
+        assert len(text_field) >= 1, f"no str or toks fields found in document. Fields: { {k: type(v) for k, v in first_doc.items()} }"
         warn(f'text_field not specified; indexing all str fields: {text_field}')
 
     mode = PisaIndexingMode.overwrite if self.overwrite else PisaIndexingMode.create
@@ -158,25 +175,83 @@ class PisaIndex(pta.Artifact, pt.Indexer):
     return self.indexer(text_field, mode=mode).index(it)
 
   def bm25(self, k1=0.9, b=0.4, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None, toks_scale=100.):
+    """Creates a BM25 retrieval transformer over this index.
+
+    Args:
+      k1: BM25 k1 parameter
+      b: BM25 b parameter
+      num_results: number of results to return per query
+      verbose: if True, print progress
+      threads: number of threads to use
+      query_algorithm: the query algorithm to use
+      query_weighted: if True, the query is weighted
+      toks_scale: scale factor to apply to toks fields
+    """
     return PisaRetrieve(self, scorer=PisaScorer.bm25, bm25_k1=k1, bm25_b=b, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted, toks_scale=toks_scale)
 
   def dph(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None, toks_scale=100.):
+    """Creates a DPH retrieval transformer over this index.
+
+    Args:
+      num_results: number of results to return per query
+      verbose: if True, print progress
+      threads: number of threads to use
+      query_algorithm: the query algorithm to use
+      query_weighted: if True, the query is weighted
+      toks_scale: scale factor to apply to toks fields
+    """
     return PisaRetrieve(self, scorer=PisaScorer.dph, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted, toks_scale=toks_scale)
 
   def pl2(self, c=1., num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None, toks_scale=100.):
+    """Creates a PL2 retrieval transformer over this index.
+
+    Args:
+      c: PL2 c parameter
+      num_results: number of results to return per query
+      verbose: if True, print progress
+      threads: number of threads to use
+      query_algorithm: the query algorithm to use
+      query_weighted: if True, the query is weighted
+      toks_scale: scale factor to apply to toks fields
+    """
     return PisaRetrieve(self, scorer=PisaScorer.pl2, pl2_c=c, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted, toks_scale=toks_scale)
 
   def qld(self, mu=1000., num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None, toks_scale=100.):
+    """Creates a QLD retrieval transformer over this index.
+
+    Args:
+      mu: QLD mu parameter
+      num_results: number of results to return per query
+      verbose: if True, print progress
+      threads: number of threads to use
+      query_algorithm: the query algorithm to use
+      query_weighted: if True, the query is weighted
+      toks_scale: scale factor to apply to toks fields
+    """
     return PisaRetrieve(self, scorer=PisaScorer.qld, qld_mu=mu, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted, toks_scale=toks_scale)
 
   def quantized(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None, toks_scale=100.):
+    """Creates a quantized retrieval transformer over this index.
+
+    This transformer is used for scoring as a dot product (e.g., for learned sparse retreival).
+
+    Args:
+      num_results: number of results to return per query
+      verbose: if True, print progress
+      threads: number of threads to use
+      query_algorithm: the query algorithm to use
+      query_weighted: if True, the query is weighted
+      toks_scale: scale factor to apply to toks fields
+    """
     return PisaRetrieve(self, scorer=PisaScorer.quantized, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted, toks_scale=toks_scale)
 
   def num_terms(self):
+    """Returns the number of terms in the index."""
     assert self.built()
     return _pisathon.num_terms(str(self.path))
 
   def num_docs(self):
+    """Returns the number of documents in the index."""
     assert self.built()
     return _pisathon.num_docs(str(self.path))
 
@@ -193,6 +268,14 @@ class PisaIndex(pta.Artifact, pt.Indexer):
 
   @staticmethod
   def from_ciff(ciff_file: str, index_path, overwrite: bool = False, stemmer = PISA_INDEX_DEFAULTS['stemmer']):
+    """Creates a PISA index from a CIFF file.
+
+    Args:
+      ciff_file: The path to the CIFF file
+      index_path: The path to the index
+      overwrite: If True, the index will be overwritten if it already exists. Defaults to False.
+      stemmer: The stemmer to use. Defaults to ``porter2``.
+    """
     import pyciff
     stemmer = PisaStemmer(stemmer)
     warn(f"Using stemmer {stemmer}, which may not match the stemmer used to construct {ciff_file}. You may need to instead pass stemmer='none' and perform the stemming in a pipeline to match the behaviour.")
@@ -226,11 +309,23 @@ class PisaIndex(pta.Artifact, pt.Indexer):
     return PisaIndex(index_path, stemmer=stemmer)
 
   def to_ciff(self, ciff_file: str, description: str = 'from pyterrier_pisa'):
+    """Converts this index to a CIFF file.
+
+    Args:
+      ciff_file: The path to the CIFF file
+      description: The description to write to the CIFF file.
+    """
     assert self.built()
     import pyciff
     pyciff.pisa_to_ciff(str(self.path/'inv'), str(self.path/'fwd.terms'), str(self.path/'fwd.documents'), ciff_file, description)
 
   def get_corpus_iter(self, field='toks', verbose=True):
+    """Iterates over the indexed corpus, yielding a dictionary for each document.
+
+    Args:
+      field: The field name to yield. Defaults to 'toks'.
+      verbose: If True, print progress.
+    """
     assert self.built()
     assert (self.path/'fwd').exists(), "get_corpus_iter requires a fwd index"
     m = np.memmap(self.path/'fwd', mode='r', dtype=np.uint32)
@@ -246,14 +341,36 @@ class PisaIndex(pta.Artifact, pt.Indexer):
       idx = end
 
   def indexer(self, text_field=None, mode=PisaIndexingMode.create, threads=None, batch_size=None):
+    """Create an indexer for this index.
+
+    Args:
+      text_field: The field name to index. Defaults to 'text'.
+      mode: The indexing mode to use. Defaults to PisaIndexingMode.create.
+      threads: The number of threads to use. Defaults to the number of threads used to create the index.
+      batch_size: The batch size to use during indexing. Defaults to the batch size used to create the index.
+    """
     return PisaIndexer(self.path, text_field or self.text_field or 'text', mode, stemmer=self.stemmer, threads=threads or self.threads, batch_size=batch_size or self.batch_size)
 
   def toks_indexer(self, text_field=None, mode=PisaIndexingMode.create, threads=None, batch_size=None, scale=100.):
+    """Create a indexer over pre-tokenized text for this index.
+
+    Args:
+      text_field: The field name to index. Defaults to 'toks'.
+      mode: The indexing mode to use. Defaults to PisaIndexingMode.create.
+      threads: The number of threads to use. Defaults to the number of threads used to create the index.
+      batch_size: The batch size to use during indexing. Defaults to the batch size used to create the index.
+      scale: The scale factor to apply to the token counts. Defaults to 100.
+    """
     if PisaStemmer(self.stemmer) != PisaStemmer.none:
       raise ValueError("To index from dicts, you must set stemmer='none'")
     return PisaToksIndexer(self.path, text_field or self.text_field or 'toks', mode, threads=threads or self.threads, batch_size=self.batch_size, scale=scale)
 
-  def tokenize(self, text):
+  def tokenize(self, text: str) -> List[str]:
+    """Tokenize a string using the stemmer of this index.
+
+    Args:
+      text: The text to tokenize
+    """
     return tokenize(text, self.stemmer)
 
 
@@ -370,6 +487,12 @@ class PisaRetrieve(pt.Transformer):
 
 
 def tokenize(text: str, stemmer: PisaStemmer = PisaStemmer.none) -> List[str]:
+  """Tokenizes a string using the specified stemmer.
+
+  Args:
+    text: The text to tokenize
+    stemmer: The stemmer to use. Defaults to no stemming
+  """
   stemmer = PisaStemmer(stemmer)
   stemmer = '' if stemmer == PisaStemmer.none else stemmer.value
   return _pisathon.tokenize(text, stemmer)
