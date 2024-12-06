@@ -1,5 +1,5 @@
 from .base import *
-import pyterrier as pt
+import pyterrier as pt, pandas as pd
 import numpy as np
 
 class VariantTests(TempDirTestCase):
@@ -25,3 +25,9 @@ class VariantTests(TempDirTestCase):
                 for t in TRANS:
                     results = t.search("chemical reactions")
                     self.assertTrue(len(results) > 0)
+
+                    # check rankcutoff, and compiled rankcutoff operates as expected
+                    res10 = results.head(10)
+                    pipe = t % 10
+                    self.assertEqual(res10, pipe.search("chemical reactions"))
+                    self.assertEqual(res10, pipe.compile().search("chemical reactions"))
