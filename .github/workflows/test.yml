@@ -40,6 +40,7 @@ jobs:
 
     - name: Install Python dependencies
       run: |
+        sudo apt-get update && sudo apt-get install -y libtbb-dev
         python -m pip install --upgrade pip scikit-build pytest
         pip install --upgrade --upgrade-strategy eager -r requirements.txt
     
