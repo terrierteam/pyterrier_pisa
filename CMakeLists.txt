@@ -10,6 +10,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mtune=generic -march=x86-64 -msse4.2 -m
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mtune=generic")
 #set(CMAKE_SHARED_LINKER_FLAGS "-Wl,--export-all-symbols")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-changes-meaning")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 
 # Speed up the build by removing CLI tools, tests, and benchmarks
 set(PISA_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
