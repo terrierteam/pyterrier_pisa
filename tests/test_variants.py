@@ -1,6 +1,6 @@
-from .base import *
-import pyterrier as pt, pandas as pd
-import numpy as np
+from .base import TempDirTestCase
+import pyterrier as pt
+import pandas as pd
 
 class VariantTests(TempDirTestCase):
 
@@ -29,5 +29,5 @@ class VariantTests(TempDirTestCase):
                     # check rankcutoff, and compiled rankcutoff operates as expected
                     res10 = results.head(10)
                     pipe = t % 10
-                    self.assertEqual(res10, pipe.search("chemical reactions"))
-                    self.assertEqual(res10, pipe.compile().search("chemical reactions"))
+                    pd.testing.assert_frame_equal(res10, pipe.search("chemical reactions"))
+                    pd.testing.assert_frame_equal(res10, pipe.compile().search("chemical reactions"))
