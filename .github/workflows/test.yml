@@ -7,18 +7,10 @@ on:
 
 jobs:
   pytest:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         python-version: ['3.8', '3.9', '3.10', '3.11']
-        name: [ubuntu-gcc-9]
-        java: [13]
-        architecture: ['x64']
-        include:
-          - name: ubuntu-gcc-9
-            os: ubuntu-latest
-            compiler: "gcc"
-            version: "9"
 
     steps:
 
@@ -29,8 +21,8 @@ jobs:
     - name: Setup java
       uses: actions/setup-java@v3
       with:
-        java-version: ${{ matrix.java }}
-        architecture: ${{ matrix.architecture }}
+        java-version: 13
+        architecture: 'x64'
         distribution: 'zulu'
 
     - name: Set up Python ${{ matrix.python-version }}

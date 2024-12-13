@@ -426,6 +426,11 @@ class PisaRetrieve(pt.Transformer):
           **self.retr_args)
       self._ctxt_key = key
 
+  def fuse_rank_cutoff(self, k: int) -> Optional['PisaRetrieve']:
+    if k < self.num_results:
+      return PisaRetrieve(self.index, self.scorer, num_results=k, threads=self.threads, verbose=self.verbose, stops=self.stops, 
+                        query_algorithm=self.query_algorithm, query_weighted=self.query_weighted, toks_scale=self.toks_scale, **self.retr_args)
+
   def transform(self, queries):
     assert 'qid' in queries.columns
     assert 'query' in queries.columns or 'query_toks' in queries.columns
