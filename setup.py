@@ -45,6 +45,9 @@ setup(
     include_package_data=True,
     install_requires=list(open('requirements.txt')),
     python_requires=">=3.8",
+    extras_require={
+        'ciff': ['pyciff==0.1.1'],
+    },
     entry_points={
         'console_scripts': ['pyterrier_pisa=pyterrier_pisa.cli:main'],
         'pyterrier.artifact': [

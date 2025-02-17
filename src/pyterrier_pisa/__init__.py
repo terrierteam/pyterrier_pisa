@@ -18,7 +18,7 @@ from . import _pisathon
 from .indexers import PisaIndexer, PisaToksIndexer, PisaIndexingMode
 from .stopwords import _STOPWORDS
 
-__version__ = '0.2.1'
+__version__ = '0.2.2'
 
 _logger = ir_datasets.log.easy()
 
@@ -321,7 +321,10 @@ class PisaIndex(pta.Artifact, pt.Indexer):
       description: The description to write to the CIFF file.
     """
     assert self.built()
-    import pyciff
+    try:
+      import pyciff
+    except ImportError as ex:
+      raise ImportError('pyciff==0.1.1 required') from ex
     pyciff.pisa_to_ciff(str(self.path/'inv'), str(self.path/'fwd.terms'), str(self.path/'fwd.documents'), ciff_file, description)
 
   def get_corpus_iter(self, field='toks', verbose=True):
