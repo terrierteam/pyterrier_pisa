@@ -109,6 +109,7 @@ class PisaStopwords(Enum):
   Represents which set of stopwords to use during retrieval
   """
   terrier = 'terrier'
+  lucene = 'lucene'
   none = 'none'
 
 
@@ -526,6 +527,8 @@ class PisaRetrieve(pt.Transformer):
     stops = self.stops
     if stops == PisaStopwords.terrier:
       stops = _STOPWORDS['terrier']
+    elif stops == PisaStopwords.lucene:
+      stops = _STOPWORDS['lucene']
     with open(fifo, 'wt') as fout:
       for stop in stops:
         fout.write(f'{stop}\n')
