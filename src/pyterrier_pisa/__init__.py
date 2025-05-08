@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import os
 import more_itertools
+import enum_tools.documentation
 from warnings import warn
 from typing import Optional, Union, Iterable, Dict
 from enum import Enum
@@ -22,15 +23,33 @@ __version__ = '0.2.2'
 
 _logger = ir_datasets.log.easy()
 
+@enum_tools.documentation.document_enum
 class PisaStemmer(Enum):
   """
   Represents a built-in stemming function from PISA
   """
   none = 'none'
+  """
+  No stemming applied
+  """
+
   porter2 = 'porter2'
+  """
+  Version 2 of the Porter stemmer using `this implementation <https://github.com/pisa-engine/Porter2>`_.
+
+  More information about the algorithm can be found `here <http://snowball.tartarus.org/algorithms/english/stemmer.html>`_.
+
+  .. cite.dblp:: journals/program/Porter80
+  """
+
   krovetz = 'krovetz'
+  """
+  The Krovetz stemmer using `this implementation <https://github.com/pisa-engine/KrovetzStemmer>`_.
 
+  .. cite.dblp:: conf/sigir/Krovetz93
+  """
 
+@enum_tools.documentation.document_enum
 class PisaScorer(Enum):
   """
   Represents a built-in scoring function from PISA
@@ -40,7 +59,16 @@ class PisaScorer(Enum):
   pl2 = 'pl2'
   qld = 'qld'
   quantized = 'quantized'
+  """
+  The "quantized" scoring mechanism.
 
+  This is used in two cases: to effectively score as a "dot product" (e.g., when impact scores are indexed directly, such as
+  when using a learned sparse retrieval method) or internally when impact scores are pre-computed uising the ``precompute_impact`` option.
+
+  .. cite.dblp:: conf/ecir/NguyenMY23
+  """
+
+@enum_tools.documentation.document_enum
 class PisaIndexEncoding(Enum):
   """
   Represents a built-in index encoding type from PISA.
@@ -61,6 +89,7 @@ class PisaIndexEncoding(Enum):
   block_simdbp = 'block_simdbp'
 
 
+@enum_tools.documentation.document_enum
 class PisaQueryAlgorithm(Enum):
   """
   Represents a built-in query algorithm
@@ -74,6 +103,7 @@ class PisaQueryAlgorithm(Enum):
   maxscore = 'maxscore'
 
 
+@enum_tools.documentation.document_enum
 class PisaStopwords(Enum):
   """
   Represents which set of stopwords to use during retrieval

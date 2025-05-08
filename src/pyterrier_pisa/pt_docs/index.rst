@@ -129,7 +129,7 @@ API Documentation
 .. autoenum:: pyterrier_pisa.PisaStemmer
 .. autoenum:: pyterrier_pisa.PisaScorer
 .. autoenum:: pyterrier_pisa.PisaIndexEncoding
-.. autoenum:: pyterrier_pisa.PisaIndexEncoding
+.. autoenum:: pyterrier_pisa.PisaQueryAlgorithm
 .. autoenum:: pyterrier_pisa.PisaStopwords
 .. autofunction:: pyterrier_pisa.tokenize
 
