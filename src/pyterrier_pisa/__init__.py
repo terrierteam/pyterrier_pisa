@@ -19,7 +19,7 @@ from . import _pisathon
 from .indexers import PisaIndexer, PisaToksIndexer, PisaIndexingMode
 from .stopwords import _STOPWORDS
 
-__version__ = '0.2.2'
+__version__ = '0.3.0'
 
 _logger = ir_datasets.log.easy()
 
@@ -209,7 +209,7 @@ class PisaIndex(pta.Artifact, pt.Indexer):
       return self.toks_indexer(text_field, mode=mode).index(it)
     return self.indexer(text_field, mode=mode).index(it)
 
-  def bm25(self, k1=0.9, b=0.4, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None, toks_scale=100.):
+  def bm25(self, k1=0.9, b=0.4, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None, toks_scale=100., precompute_impact=False):
     """Creates a BM25 retrieval transformer over this index.
 
     Args:
@@ -221,8 +221,9 @@ class PisaIndex(pta.Artifact, pt.Indexer):
       query_algorithm: the query algorithm to use
       query_weighted: if True, the query is weighted
       toks_scale: scale factor to apply to toks fields
+      precompute_impact=False: pre-compute impact scores. This speeds up retrieval.
     """
-    return PisaRetrieve(self, scorer=PisaScorer.bm25, bm25_k1=k1, bm25_b=b, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted, toks_scale=toks_scale)
+    return PisaRetrieve(self, scorer=PisaScorer.bm25, bm25_k1=k1, bm25_b=b, num_results=num_results, verbose=verbose, threads=threads or self.threads, stops=self.stops, query_algorithm=query_algorithm, query_weighted=query_weighted, toks_scale=toks_scale, precompute_impact=precompute_impact)
 
   def dph(self, num_results=1000, verbose=False, threads=None, query_algorithm=None, query_weighted=None, toks_scale=100.):
     """Creates a DPH retrieval transformer over this index.
@@ -413,7 +414,7 @@ class PisaIndex(pta.Artifact, pt.Indexer):
 
 
 class PisaRetrieve(pt.Transformer):
-  def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, query_weighted=None, toks_scale=100., **retr_args):
+  def __init__(self, index: Union[PisaIndex, str], scorer: Union[PisaScorer, str], num_results: int = 1000, threads=None, verbose=False, stops=None, query_algorithm=None, query_weighted=None, toks_scale=100., precompute_impact=False, **retr_args):
     if isinstance(index, PisaIndex):
       self.index = index
     else:
@@ -435,13 +436,14 @@ class PisaRetrieve(pt.Transformer):
     else:
       self.query_weighted = query_weighted
     self.toks_scale = toks_scale
+    self.precompute_impact = precompute_impact
     self._ctxt = None
     self._ctxt_key = None
     self.reset_retrieval_context()
 
   def reset_retrieval_context(self, force=False):
     key = [
-      str(self.index.path), self.index.index_encoding, self.scorer, self.index.stemmer, self.stops, self.query_weighted,
+      str(self.index.path), self.index.index_encoding, self.scorer, self.index.stemmer, self.stops, self.precompute_impact, self.query_weighted,
     ]
     for k, v in sorted(self.retr_args.items()):
       key.extend([k, v])
@@ -455,6 +457,7 @@ class PisaRetrieve(pt.Transformer):
           self.index.index_encoding.value,
           self.scorer.value,
           '' if self.index.stemmer == PisaStemmer.none else self.index.stemmer.value,
+          quantize=1 if self.precompute_impact else 0,
           stop_fname=self._stops_fname(d),
           **self.retr_args)
       self._ctxt_key = key
