@@ -233,7 +233,11 @@ static PyObject *py_prepare_index(PyObject *self, PyObject *args, PyObject *kwar
   else if (scorer.name == "quantized") scorer_fmt = scorer.name;
   else return NULL;
 
-  ctxt->scorer = std::make_shared<ScorerParams>(scorer);
+  if (quantize) {
+    ctxt->scorer = std::make_shared<ScorerParams>(ScorerParams("quantized"));
+  } else {
+    ctxt->scorer = std::make_shared<ScorerParams>(scorer);
+  }
 
   auto wand_path = f_index_dir/fmt::format("{}.q{:d}.bmw.{:d}", scorer_fmt, quantize, block_size);
   auto index_path = fmt::format("{}.{}", wand_path.string(), encoding);
