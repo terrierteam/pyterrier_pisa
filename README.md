@@ -6,7 +6,7 @@ Interactive Colab Demo: [![Open In Colab](https://colab.research.google.com/asse
 
 ## Getting Started
 
-These bindings are only available for cpython 3.8-3.11 on `manylinux2010_x86_64` platforms. They can be installed via pip:
+These bindings are only available for cpython 3.8-3.12 on `manylinux2010_x86_64` platforms. They can be installed via pip:
 
 ```bash
 pip install pyterrier_pisa
