@@ -182,12 +182,22 @@ class PisaIndex(pta.Artifact, pt.Indexer):
     self.overwrite = overwrite
     self.stops = stops
 
-  def transform(self, *args, **kwargs):
-    raise RuntimeError(f'You cannot use {self} itself as a transformer. Did you mean to call a ranking function like .bm25()?')
-
   def built(self):
     """Returns True if the index has been built."""
     return (self.path/'pt_meta.json').exists() or (self.path/'pt_pisa_config.json').exists()
+
+  def index_inputs(self):
+    """Returns the expected input cols for indexing."""
+    if self.text_field is None:
+      return [
+          ["docno", "text"], # typical case (as a hint)
+          ["docno", "toks"], # toks case
+          ["docno"], # generic "everything else"
+        ]
+    elif isinstance(self.text_field, str):
+      return [["docno", self.text_field]]
+    else:
+      return [["docno"] + list(self.text_field)]
 
   def index(self, it: Iterable[Dict]):
     """Indexes a collection of documents."""
@@ -300,8 +310,7 @@ class PisaIndex(pta.Artifact, pt.Indexer):
 
   @staticmethod
   def from_dataset(dataset: Union[str, Dataset], variant: str = 'pisa_porter2', version: str = 'latest', **kwargs):
-    from pyterrier.batchretrieve import _from_dataset
-    return _from_dataset(dataset, variant=variant, version=version, clz=PisaIndex, **kwargs)
+    return  pt.datasets.transformer_from_dataset(dataset, variant=variant, version=version, clz=PisaIndex, **kwargs)
 
   @staticmethod
   def from_ciff(ciff_file: str, index_path, overwrite: bool = False, stemmer = PISA_INDEX_DEFAULTS['stemmer']):
@@ -485,9 +494,8 @@ class PisaRetrieve(pt.Transformer):
       pretok = False
       inp.extend(enumerate(queries['query']))
 
-    if self.verbose:
+    if self.verbose and len(queries):
       inp = tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
-    # with tempfile.TemporaryDirectory() as d:
     shape = (len(queries) * self.num_results,)
     result_qidxs = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
     result_docnos = np.ascontiguousarray(np.empty(shape, dtype=object))
@@ -517,8 +525,7 @@ class PisaRetrieve(pt.Transformer):
 
   @staticmethod
   def from_dataset(dataset: Union[str, Dataset], variant: str = None, version: str = 'latest', **kwargs):
-    from pyterrier.batchretrieve import _from_dataset
-    return _from_dataset(dataset, variant=variant, version=version, clz=PisaRetrieve, **kwargs)
+    return pt.datasets.transformer_from_dataset(dataset, variant=variant, version=version, clz=PisaRetrieve, **kwargs)
 
   def _stops_fname(self, d):
     if self.stops == PisaStopwords.none:
@@ -555,6 +562,7 @@ class DictTokeniser(pt.Transformer):
     self.stemmer = stemmer or (lambda x: x)
 
   def transform(self, inp):
+    pta.validate.columns(inp, includes=[self.field])
     from nltk import word_tokenize
     return inp.assign(**{f'{self.field}_toks': inp[self.field].map(lambda x: dict(Counter(self.stemmer(t) for t in word_tokenize(x.lower()) if t.isalnum() )))})
 
