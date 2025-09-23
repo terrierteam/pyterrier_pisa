@@ -31,6 +31,9 @@ class PisaIndexer(pt.Indexer):
     self.threads = threads
     self.batch_size = batch_size
 
+  def index_inputs(self):
+    return [["docno", self.text_field]]
+
   def index(self, it):
     path = self.path
     if pyterrier_pisa.PisaIndex.built(self):

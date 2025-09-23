@@ -182,12 +182,16 @@ class PisaIndex(pta.Artifact, pt.Indexer):
     self.overwrite = overwrite
     self.stops = stops
 
-  def transform(self, *args, **kwargs):
-    raise RuntimeError(f'You cannot use {self} itself as a transformer. Did you mean to call a ranking function like .bm25()?')
-
   def built(self):
     """Returns True if the index has been built."""
     return (self.path/'pt_meta.json').exists() or (self.path/'pt_pisa_config.json').exists()
+
+  def index_inputs(self):
+    """Returns the expected input cols for indexing."""
+    return [
+        ["docno", self.text_field],
+        ["docno", "toks"],
+      ]
 
   def index(self, it: Iterable[Dict]):
     """Indexes a collection of documents."""
@@ -484,7 +488,7 @@ class PisaRetrieve(pt.Transformer):
       pretok = False
       inp.extend(enumerate(queries['query']))
 
-    if self.verbose:
+    if self.verbose and len(queries):
       inp = tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
     # with tempfile.TemporaryDirectory() as d:
     shape = (len(queries) * self.num_results,)
@@ -553,6 +557,7 @@ class DictTokeniser(pt.Transformer):
     self.stemmer = stemmer or (lambda x: x)
 
   def transform(self, inp):
+    pta.validate.any(inp).columns(includes=[self.field])
     from nltk import word_tokenize
     return inp.assign(**{f'{self.field}_toks': inp[self.field].map(lambda x: dict(Counter(self.stemmer(t) for t in word_tokenize(x.lower()) if t.isalnum() )))})
 
