@@ -556,7 +556,7 @@ class DictTokeniser(pt.Transformer):
     self.stemmer = stemmer or (lambda x: x)
 
   def transform(self, inp):
-    pta.validate.any(inp).columns(includes=[self.field])
+    pta.validate.columns(inp, includes=[self.field])
     from nltk import word_tokenize
     return inp.assign(**{f'{self.field}_toks': inp[self.field].map(lambda x: dict(Counter(self.stemmer(t) for t in word_tokenize(x.lower()) if t.isalnum() )))})
 
