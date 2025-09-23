@@ -188,10 +188,16 @@ class PisaIndex(pta.Artifact, pt.Indexer):
 
   def index_inputs(self):
     """Returns the expected input cols for indexing."""
-    return [
-        ["docno", self.text_field],
-        ["docno", "toks"],
-      ]
+    if self.text_field is None:
+      return [
+          ["docno", "text"], # typical case (as a hint)
+          ["docno", "toks"], # toks case
+          ["docno"], # generic "everything else"
+        ]
+    elif isinstance(self.text_field, str):
+      return [["docno", self.text_field]]
+    else:
+      return [["docno"] + list(self.text_field)]
 
   def index(self, it: Iterable[Dict]):
     """Indexes a collection of documents."""
