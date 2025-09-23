@@ -516,8 +516,7 @@ class PisaRetrieve(pt.Transformer):
 
   @staticmethod
   def from_dataset(dataset: Union[str, Dataset], variant: str = None, version: str = 'latest', **kwargs):
-    from pyterrier.batchretrieve import _from_dataset
-    return _from_dataset(dataset, variant=variant, version=version, clz=PisaRetrieve, **kwargs)
+    return pt.datasets.transformer_from_dataset(dataset, variant=variant, version=version, clz=PisaRetrieve, **kwargs)
 
   def _stops_fname(self, d):
     if self.stops == PisaStopwords.none:
