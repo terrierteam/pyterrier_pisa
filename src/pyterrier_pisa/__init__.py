@@ -300,8 +300,7 @@ class PisaIndex(pta.Artifact, pt.Indexer):
 
   @staticmethod
   def from_dataset(dataset: Union[str, Dataset], variant: str = 'pisa_porter2', version: str = 'latest', **kwargs):
-    from pyterrier.batchretrieve import _from_dataset
-    return _from_dataset(dataset, variant=variant, version=version, clz=PisaIndex, **kwargs)
+    return  pt.datasets.transformer_from_dataset(dataset, variant=variant, version=version, clz=PisaIndex, **kwargs)
 
   @staticmethod
   def from_ciff(ciff_file: str, index_path, overwrite: bool = False, stemmer = PISA_INDEX_DEFAULTS['stemmer']):
