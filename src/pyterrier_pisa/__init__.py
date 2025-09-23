@@ -490,7 +490,6 @@ class PisaRetrieve(pt.Transformer):
 
     if self.verbose and len(queries):
       inp = tqdm(inp, unit='query', desc=f'PISA {self.scorer.value}')
-    # with tempfile.TemporaryDirectory() as d:
     shape = (len(queries) * self.num_results,)
     result_qidxs = np.ascontiguousarray(np.empty(shape, dtype=np.int32))
     result_docnos = np.ascontiguousarray(np.empty(shape, dtype=object))
