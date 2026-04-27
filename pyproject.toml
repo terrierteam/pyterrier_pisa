@@ -1,2 +1,38 @@
 [build-system]
-requires = ["setuptools", "wheel", "scikit-build", "cmake", "ninja", "numpy"]
+requires = ["scikit-build-core", "numpy"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pyterrier_pisa"
+dynamic = ["version"]
+description = "A PyTerrier interface to the PISA search engine"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [{name = "Sean MacAvaney"}]
+requires-python = ">=3.8"
+dependencies = [
+    "python_terrier>=0.9.1",
+    "pyterrier-alpha>=0.2.0",
+    "numpy<3.0.0",
+    "tqdm",
+    "tbb<=2020.3.254",
+    "enum-tools",
+]
+
+[project.optional-dependencies]
+ciff = ["pyciff==0.1.1"]
+
+[project.scripts]
+pyterrier_pisa = "pyterrier_pisa.cli:main"
+
+[project.entry-points."pyterrier.artifact"]
+"sparse_index.pisa" = "pyterrier_pisa:PisaIndex"
+
+[project.entry-points."pyterrier.artifact.metadata_adapter"]
+"sparse_index.pisa" = "pyterrier_pisa.pisa_metadata_adapter:pisa_artifact_metadata_adapter"
+
+[tool.scikit-build]
+metadata.version.provider = "scikit_build_core.metadata.regex"
+metadata.version.input = "src/pyterrier_pisa/__init__.py"
+metadata.version.regex = '(?m)^__version__ = ["\'](?P<value>[^"\']+)["\']'
+wheel.packages = ["src/pyterrier_pisa"]

@@ -32,13 +32,12 @@ jobs:
 
     - name: Install Python dependencies
       run: |
-        python -m pip install --upgrade pip scikit-build pytest
+        python -m pip install --upgrade pip build
         pip install --upgrade --upgrade-strategy eager -r requirements.txt
     
     - name: Build pyterrier_pisa
       run: |
-        python setup.py bdist_wheel
-        python patcher.py dist/
+        python -m build --wheel
         pip install dist/*.whl
         pip install -r requirements-dev.txt
 

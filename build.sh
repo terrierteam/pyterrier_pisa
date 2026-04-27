@@ -1,5 +1,4 @@
 #!/bin/bash
-python setup.py bdist_wheel
-python patcher.py dist/ 
+python -m build --wheel
 pip uninstall -qy pyterrier_pisa
 pip install dist/*.whl
