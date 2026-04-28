@@ -128,8 +128,8 @@ class PisaToksIndexer(PisaIndexer):
       offsets_lens = []
       i = 0
       while i < in_docs.shape[0]:
-        offsets_lens.append((i, in_docs[i]+1))
-        i += in_docs[i] + 1
+        offsets_lens.append((int(i), int(in_docs[i]) + 1))
+        i += int(in_docs[i]) + 1
       for term in _logger.pbar(sorted(lexicon), desc='re-mapping term ids'):
         f_lex.write(f'{term}\n')
         i = lexicon[term]

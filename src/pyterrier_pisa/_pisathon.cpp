@@ -439,14 +439,20 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   auto scores = (float_t*)  result_scores.buf;
 
   auto iter = PyObject_GetIter(in_queries);
-  tbb::spin_mutex mutex;
   size_t arr_idx = 0;
 
+  PyThreadState *_save = NULL;
+  if (threads != 1) {
+    //main thread will release the GIL
+    _save = PyEval_SaveThread();
+  }
+  
   auto run = [&, threads](size_t thread_idx) {
         PyObject* res;
         int qidx;
         const char* qtext;
-        if (threads != 1) mutex.lock();
+        PyGILState_STATE gstate;
+        if (threads != 1) gstate = PyGILState_Ensure(); //acquire the GIL
         auto docnos_tmp = new std::string[k];
         std::chrono::time_point<std::chrono::high_resolution_clock> query_start;
         std::chrono::time_point<std::chrono::high_resolution_clock> query_end;
@@ -506,7 +512,7 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
           }
           Py_DECREF(res);
 
-          if (threads != 1) mutex.unlock();
+          if (threads != 1) PyGILState_Release(gstate);
 
           auto query_res = query_fun(query);
           // Stabilise the sort by sorting on score (desc), then docid (asc). See <https://github.com/pisa-engine/pisa/issues/508>
@@ -514,10 +520,10 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
             return a.first == b.first ? a.second < b.second : a.first > b.first;
           });
           auto count = query_res.size();
-          if (threads != 1) mutex.lock();
+          if (threads != 1) gstate = PyGILState_Ensure();
           size_t start = arr_idx;
           arr_idx += count;
-          if (threads != 1) mutex.unlock();
+          if (threads != 1) PyGILState_Release(gstate);
           size_t i = 0;
           for (auto r: query_res) {
             docnos_tmp[i] = docmap[r.second];
@@ -527,13 +533,13 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
           }
           std::fill(qidxs+start, qidxs+start+count, qidx);
 
-          if (threads != 1) mutex.lock();
+          if (threads != 1) gstate = PyGILState_Ensure();
           for (int i=0; i<count; ++i) {
             auto docno = PyUnicode_FromStringAndSize(docnos_tmp[i].data(), docnos_tmp[i].length());
             docnos[start+i] = docno; // takes ownership, shouldn't decref
           }
         }
-        if (threads != 1) mutex.unlock();
+        if (threads != 1) PyGILState_Release(gstate);
         delete [] docnos_tmp;
   };
 
@@ -542,6 +548,10 @@ static PyObject *py_retrieve(PyObject *self, PyObject *args, PyObject *kwargs) {
   }
   else {
     tbb::parallel_for(size_t(0), size_t(threads), run);
+  }
+
+  if (threads != 1) { //give GIL back to main thread
+    PyEval_RestoreThread(_save);
   }
 
   Py_DECREF(iter);
