@@ -3,9 +3,18 @@ import pyterrier as pt
 import numpy as np
 import pandas as pd
 
+def pyciff_installed():
+    try:
+        import pyciff
+        return True
+    except:
+        return False
+
 class CiffTest(TempDirTestCase):
 
     def test_to_and_from_ciff(self):
+        if not pyciff_installed():
+            self.skipTest("pyciff not installed")
         from pyterrier_pisa import PisaIndex
         dataset = pt.get_dataset("vaswani")
         idx = PisaIndex(self.test_dir)
