@@ -1,5 +1,5 @@
 [build-system]
-requires = ["scikit-build-core", "numpy", "hatch-requirements-txt"]
+requires = ["scikit-build-core", "numpy"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -10,9 +10,6 @@ readme = "README.md"
 license = {file = "LICENSE"}
 authors = [{name = "Sean MacAvaney"}]
 requires-python = ">=3.8"
-
-[tool.hatch.metadata.hooks.requirements_txt]
-files = ["requirements.txt"]
 
 [project.optional-dependencies]
 ciff = ["pyciff==0.1.1"]
@@ -27,7 +24,10 @@ pyterrier_pisa = "pyterrier_pisa.cli:main"
 "sparse_index.pisa" = "pyterrier_pisa.pisa_metadata_adapter:pisa_artifact_metadata_adapter"
 
 [tool.scikit-build]
+experimental = true
+wheel.packages = ["src/pyterrier_pisa"]
 metadata.version.provider = "scikit_build_core.metadata.regex"
 metadata.version.input = "src/pyterrier_pisa/__init__.py"
 metadata.version.regex = '(?m)^__version__ = "(?P<value>[^"]+)"'
-wheel.packages = ["src/pyterrier_pisa"]
+metadata.dependencies.provider = "_deps_from_file"
+metadata.dependencies.provider-path = "."
