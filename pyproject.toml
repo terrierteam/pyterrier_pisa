@@ -1,23 +1,18 @@
 [build-system]
-requires = ["scikit-build-core", "numpy"]
+requires = ["scikit-build-core", "numpy", "hatch-requirements-txt"]
 build-backend = "scikit_build_core.build"
 
 [project]
 name = "pyterrier_pisa"
-dynamic = ["version"]
+dynamic = ["version", "dependencies"]
 description = "A PyTerrier interface to the PISA search engine"
 readme = "README.md"
 license = {file = "LICENSE"}
 authors = [{name = "Sean MacAvaney"}]
 requires-python = ">=3.8"
-dependencies = [
-    "python_terrier>=0.9.1",
-    "pyterrier-alpha>=0.2.0",
-    "numpy<3.0.0",
-    "tqdm",
-    "tbb<=2020.3.254",
-    "enum-tools",
-]
+
+[tool.hatch.metadata.hooks.requirements_txt]
+files = ["requirements.txt"]
 
 [project.optional-dependencies]
 ciff = ["pyciff==0.1.1"]
