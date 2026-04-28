@@ -4,4 +4,3 @@ pytest-subtests
 pytest-cov
 pytest-json-report
 ruff
-pyciff==0.1.1
