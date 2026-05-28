@@ -19,9 +19,11 @@ import ir_datasets
 # add tbb location to library path
 from importlib.metadata import distribution
 lib_path = str(distribution("tbb")._path) + "/../../../"
-os.environ["LD_LIBRARY_PATH"] = (
-    os.environ.get("LD_LIBRARY_PATH", "") + ":" if "LD_LIBRARY_PATH" in os.environ else ""
-) + lib_path
+if "LD_LIBRARY_PATH" in os.environ:
+    if lib_path not in os.environ["LD_LIBRARY_PATH"]:
+        os.environ["LD_LIBRARY_PATH"] += ":" + path
+else:
+    os.environ["LD_LIBRARY_PATH"] = lib_path
 from . import _pisathon
 
 
