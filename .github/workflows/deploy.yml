@@ -3,6 +3,7 @@ name: deploy
 on:
   release:
     types: [created]
+  workflow_dispatch: {}
 
 jobs:
   pypi:
@@ -32,6 +33,7 @@ jobs:
         CIBW_REPAIR_WHEEL_COMMAND: 'auditwheel repair -w {dest_dir} {wheel}'
         CIBW_ENVIRONMENT: 'CMAKE_POLICY_VERSION_MINIMUM=3.5'
     - name: upload Release
+      if: ${{ github.event_name == 'release' }}
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
