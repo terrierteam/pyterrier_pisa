@@ -23,9 +23,6 @@ pyterrier_pisa = "pyterrier_pisa.cli:main"
 [project.entry-points."pyterrier.artifact.metadata_adapter"]
 "sparse_index.pisa" = "pyterrier_pisa.pisa_metadata_adapter:pisa_artifact_metadata_adapter"
 
-[tool.ruff.lint]
-ignore = ["E402"]
-
 [tool.scikit-build]
 experimental = true
 wheel.packages = ["src/pyterrier_pisa"]
