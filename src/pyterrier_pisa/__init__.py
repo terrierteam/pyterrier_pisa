@@ -17,7 +17,6 @@ from pyterrier.datasets import Dataset
 import ir_datasets
 
 # add tbb location to library path
-import os
 from importlib.metadata import distribution
 os.environ["LD_LIBRARY_PATH"] = os.environ["LD_LIBRARY_PATH"] + ":" + distribution("tbb")._path + "../../../"
 from . import _pisathon
