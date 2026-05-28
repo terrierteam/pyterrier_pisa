@@ -21,7 +21,7 @@ from importlib.metadata import distribution
 lib_path = str(distribution("tbb")._path) + "/../../../"
 if "LD_LIBRARY_PATH" in os.environ:
     if lib_path not in os.environ["LD_LIBRARY_PATH"]:
-        os.environ["LD_LIBRARY_PATH"] += ":" + path
+        os.environ["LD_LIBRARY_PATH"] += ":" + lib_path
 else:
     os.environ["LD_LIBRARY_PATH"] = lib_path
 from . import _pisathon
