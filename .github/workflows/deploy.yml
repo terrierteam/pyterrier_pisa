@@ -22,8 +22,8 @@ jobs:
       with:
         output-dir: wheelhouse
       env:
-        # HACK: download TBB from official release
-        CIBW_BEFORE_ALL: "yum clean all ; yum check ; yum erase apf ; yum update ca-certificates ; yum upgrade ; yum install -v -y tbb wget ; mkdir /tbb/ ; wget https://github.com/oneapi-src/oneTBB/releases/download/v2020.2/tbb-2020.2-lin.tgz -O /tbb/tbb.tar.gz ; cd /tbb/ ; tar -xzvf tbb.tar.gz ; pip install scikit-build-core numpy"
+        # Avoid mixing externally-installed TBB binaries with TBB installed by pip
+        CIBW_BEFORE_ALL: "yum clean all ; yum check ; yum erase apf ; yum update ca-certificates ; yum upgrade ; pip install scikit-build-core numpy"
         CIBW_BEFORE_BUILD: "python -m pip install scikit-build-core numpy cmake ninja -v"
         CIBW_BUILD_VERBOSITY: '1'
         CIBW_ARCHS_LINUX: "x86_64"
