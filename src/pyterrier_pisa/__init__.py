@@ -15,22 +15,11 @@ import pyterrier as pt
 import pyterrier_alpha as pta
 from pyterrier.datasets import Dataset
 import ir_datasets
-
-# add tbb location to library path
-from importlib.metadata import distribution
-lib_path = str(distribution("tbb")._path) + "/../../../"
-if "LD_LIBRARY_PATH" in os.environ:
-    if lib_path not in os.environ["LD_LIBRARY_PATH"]:
-        os.environ["LD_LIBRARY_PATH"] += ":" + lib_path
-else:
-    os.environ["LD_LIBRARY_PATH"] = lib_path
 from . import _pisathon
-
-
 from .indexers import PisaIndexer, PisaToksIndexer, PisaIndexingMode
 from .stopwords import _STOPWORDS
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 _logger = ir_datasets.log.easy()
 
