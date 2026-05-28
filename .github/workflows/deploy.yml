@@ -22,7 +22,7 @@ jobs:
       with:
         output-dir: wheelhouse
       env:
-        # Avoid mixing externally-installed TBB binaries with the vendored TBB build from PISA.
+        # Avoid mixing externally-installed TBB binaries with TBB installed by pip
         CIBW_BEFORE_ALL: "yum clean all ; yum check ; yum erase apf ; yum update ca-certificates ; yum upgrade ; pip install scikit-build-core numpy"
         CIBW_BEFORE_BUILD: "python -m pip install scikit-build-core numpy cmake ninja -v"
         CIBW_BUILD_VERBOSITY: '1'
