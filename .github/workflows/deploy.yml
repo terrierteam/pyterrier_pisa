@@ -30,7 +30,14 @@ jobs:
         CIBW_ARCHS_LINUX: "x86_64"
         # Only supports cpython 3.9 - 3.13 on manylinux_x86_64
         CIBW_BUILD: 'cp39-manylinux_x86_64 cp310-manylinux_x86_64 cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp313-manylinux_x86_64'
-        CIBW_REPAIR_WHEEL_COMMAND: 'auditwheel repair -w {dest_dir} {wheel}'
+        CIBW_BEFORE_REPAIR: "python -m pip install 'tbb<=2020.3.254'"
+        CIBW_REPAIR_WHEEL_COMMAND: >
+          sh -c '
+            python -m pip install "tbb<=2020.3.254" &&
+            PYTHON=`python -c 'import sys; print(sys.executable)'` &&
+            export LD_LIBRARY_PATH=`dirname $PYTHON`/../lib &&
+            auditwheel repair -w {dest_dir} {wheel}
+          '
         CIBW_ENVIRONMENT: 'CMAKE_POLICY_VERSION_MINIMUM=3.5'
     - name: upload Release
       if: ${{ github.event_name == 'release' }}
