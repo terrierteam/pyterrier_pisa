@@ -34,7 +34,7 @@ jobs:
         CIBW_REPAIR_WHEEL_COMMAND: >
           sh -c '
             python -m pip install "tbb<=2020.3.254" &&
-            PYTHON=`python -c 'import sys; print(sys.executable)'` &&
+            PYTHON=`python -c "import sys; print(sys.executable)"` &&
             export LD_LIBRARY_PATH=`dirname $PYTHON`/../lib &&
             auditwheel repair -w {dest_dir} {wheel}
           '
