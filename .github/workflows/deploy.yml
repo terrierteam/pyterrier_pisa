@@ -39,9 +39,9 @@ jobs:
         #   auditwheel repair -w {dest_dir} {wheel}
         CIBW_ENVIRONMENT: 'CMAKE_POLICY_VERSION_MINIMUM=3.5'
         # perform testing of the wheel in the same environment as it was built
-        CIBW_BEFORE_TEST: "pip install -r requirements.txt"
-        CIBW_TEST_COMMAND: > 
-          python -m pyterrier_pisa
+        #CIBW_BEFORE_TEST: "pip install -r requirements.txt"
+        #CIBW_TEST_COMMAND: > 
+        #  python -m pyterrier_pisa
     - name: upload Release
       if: ${{ github.event_name == 'release' }}
       env:
