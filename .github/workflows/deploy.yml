@@ -31,11 +31,11 @@ jobs:
         #CIBW_BUILD: 'cp39-manylinux_x86_64 cp310-manylinux_x86_64 cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp313-manylinux_x86_64'
         # TODO - speed up build by only building for 3.12, remove this.
         CIBW_BUILD: 'cp312-manylinux_x86_64'
-        CIBW_REPAIR_WHEEL_COMMAND: ""
-        # CIBW_REPAIR_WHEEL_COMMAND: >
-        #   PYTHON=`python -c "import sys; print(sys.executable)"` &&
-        #   export LD_LIBRARY_PATH=`dirname $PYTHON`/../lib &&
-        #   auditwheel repair -w {dest_dir} {wheel}
+        CIBW_REPAIR_WHEEL_COMMAND: >   
+          auditwheel show {wheel} &&
+          PYTHON=`python -c "import sys; print(sys.executable)"` &&
+          export LD_LIBRARY_PATH=`dirname $PYTHON`/../lib &&
+          auditwheel repair --exclude libtbb.so.* -w {dest_dir} {wheel}
         CIBW_ENVIRONMENT: 'CMAKE_POLICY_VERSION_MINIMUM=3.5'
         # perform testing of the wheel in the same environment as it was built
         #CIBW_BEFORE_TEST: "pip install -r requirements.txt"
