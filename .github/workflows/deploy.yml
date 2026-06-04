@@ -37,7 +37,11 @@ jobs:
           PYTHON=`python -c "import sys; print(sys.executable)"` &&
           export LD_LIBRARY_PATH=`dirname $PYTHON`/../lib &&
           auditwheel repair --exclude libtbb.so.* -w {dest_dir} {wheel}
-        CIBW_ENVIRONMENT: 'CMAKE_POLICY_VERSION_MINIMUM=3.5'
+        # prevent over-optimisation of the build to the CI machine 
+        CIBW_ENVIRONMENT: >
+          CMAKE_POLICY_VERSION_MINIMUM=3.5
+          CXXFLAGS="-O3 -march=x86-64-v2"
+          CFLAGS="-O3 -march=x86-64-v2"
     
     - name: upload Release
       if: ${{ github.event_name == 'release' }}
