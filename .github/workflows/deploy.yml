@@ -12,35 +12,33 @@ jobs:
     - uses: actions/checkout@v2
       with:
         submodules: recursive
+
     - uses: actions/setup-python@v2
       with:
         python-version: '3.x'
+    
     - name: install-deps
       run: |
         python -m pip install --upgrade pip
         pip install build twine
+    
     - uses: pypa/cibuildwheel@v2.19.2
       with:
         output-dir: wheelhouse
       env:
-        # Avoid mixing externally-installed TBB binaries with TBB installed by pip
         CIBW_BEFORE_BUILD: "python -m pip install scikit-build-core 'tbb<=2020.3.254' numpy cmake ninja -v"
         CIBW_BUILD_VERBOSITY: '1'
         CIBW_ARCHS_LINUX: "x86_64"
         # Only supports cpython 3.9 - 3.13 on manylinux_x86_64
-        #CIBW_BUILD: 'cp39-manylinux_x86_64 cp310-manylinux_x86_64 cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp313-manylinux_x86_64'
-        # TODO - speed up build by only building for 3.12, remove this.
-        CIBW_BUILD: 'cp312-manylinux_x86_64'
+        CIBW_BUILD: 'cp39-manylinux_x86_64 cp310-manylinux_x86_64 cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp313-manylinux_x86_64'
+        # Avoid mixing externally-installed TBB binaries with TBB installed by pip
         CIBW_REPAIR_WHEEL_COMMAND: >   
           auditwheel show {wheel} &&
           PYTHON=`python -c "import sys; print(sys.executable)"` &&
           export LD_LIBRARY_PATH=`dirname $PYTHON`/../lib &&
           auditwheel repair --exclude libtbb.so.* -w {dest_dir} {wheel}
         CIBW_ENVIRONMENT: 'CMAKE_POLICY_VERSION_MINIMUM=3.5'
-        # perform testing of the wheel in the same environment as it was built
-        #CIBW_BEFORE_TEST: "pip install -r requirements.txt"
-        #CIBW_TEST_COMMAND: > 
-        #  python -m pyterrier_pisa
+    
     - name: upload Release
       if: ${{ github.event_name == 'release' }}
       env:
@@ -48,12 +46,6 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
       run: |
         twine upload --verbose wheelhouse/*
-    
-    - name: Publish TestPyPI (non-release)
-      if: ${{ github.event_name != 'release' }}
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        repository-url: https://test.pypi.org/legacy/
 
     - uses: actions/upload-artifact@v4
       with:
