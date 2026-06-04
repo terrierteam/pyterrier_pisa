@@ -1,5 +1,8 @@
 name: deploy
-
+permissions:
+  contents: read
+  id-token: write
+  
 on:
   release:
     types: [created]
