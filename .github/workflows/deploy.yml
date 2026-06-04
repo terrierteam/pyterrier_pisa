@@ -28,6 +28,7 @@ jobs:
       env:
         CIBW_BEFORE_BUILD: "python -m pip install scikit-build-core 'tbb<=2020.3.254' numpy cmake ninja -v"
         CIBW_BUILD_VERBOSITY: '1'
+        CIBW_BEFORE_ALL_LINUX: "gcc --version"
         CIBW_ARCHS_LINUX: "x86_64"
         # Only supports cpython 3.9 - 3.13 on manylinux_x86_64
         CIBW_BUILD: 'cp39-manylinux_x86_64 cp310-manylinux_x86_64 cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp313-manylinux_x86_64'
@@ -40,8 +41,8 @@ jobs:
         # prevent over-optimisation of the build to the CI machine 
         CIBW_ENVIRONMENT: >
           CMAKE_POLICY_VERSION_MINIMUM=3.5
-          CFLAGS="-O3 -march=x86-64 -mtune=generic -fno-tree-vectorize -fno-slp-vectorize -mno-avx512f -mno-avx512dq -mno-avx512bw -mno-avx512vl"
-          CXXFLAGS="-O3 -march=x86-64 -mtune=generic -fno-tree-vectorize -fno-slp-vectorize -mno-avx512f -mno-avx512dq -mno-avx512bw -mno-avx512vl"
+          CFLAGS="-O3 -march=x86-64 -mtune=generic -fno-tree-vectorize -mno-avx512f -mno-avx512dq -mno-avx512bw -mno-avx512vl"
+          CXXFLAGS="-O3 -march=x86-64 -mtune=generic -fno-tree-vectorize -mno-avx512f -mno-avx512dq -mno-avx512bw -mno-avx512vl"
     
     - name: upload Release
       if: ${{ github.event_name == 'release' }}
