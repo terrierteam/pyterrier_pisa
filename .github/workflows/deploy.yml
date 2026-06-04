@@ -40,8 +40,8 @@ jobs:
         # prevent over-optimisation of the build to the CI machine 
         CIBW_ENVIRONMENT: >
           CMAKE_POLICY_VERSION_MINIMUM=3.5
-          CXXFLAGS="-O3 -march=x86-64-v2"
-          CFLAGS="-O3 -march=x86-64-v2"
+          CFLAGS="-O3 -march=x86-64 -mtune=generic -fno-tree-vectorize -fno-slp-vectorize -mno-avx512f -mno-avx512dq -mno-avx512bw -mno-avx512vl"
+          CXXFLAGS="-O3 -march=x86-64 -mtune=generic -fno-tree-vectorize -fno-slp-vectorize -mno-avx512f -mno-avx512dq -mno-avx512bw -mno-avx512vl"
     
     - name: upload Release
       if: ${{ github.event_name == 'release' }}
