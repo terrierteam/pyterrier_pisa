@@ -54,7 +54,7 @@ jobs:
       if: ${{ github.event_name != 'release' }}
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
-      repository-url: https://test.pypi.org/legacy/
+        repository-url: https://test.pypi.org/legacy/
 
     - uses: actions/upload-artifact@v4
       with:
