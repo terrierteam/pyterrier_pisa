@@ -34,7 +34,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install build twine
-    
+
+    - name: Apply patches
+      run: |
+        sed -i '/^#include <limits>$/a #include <cstdint>' pisa/external/rapidcheck/include/rapidcheck/detail/Utility.h
+
     - uses: pypa/cibuildwheel@v3.2.1
       with:
         output-dir: wheelhouse
