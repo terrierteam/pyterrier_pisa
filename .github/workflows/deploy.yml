@@ -38,7 +38,7 @@ jobs:
     - name: Apply patches to rapidcheck to support cibuildwheel v3 base images
       run: |
         sed -i '/^#include <limits>$/a #include <cstdint>' pisa/external/rapidcheck/include/rapidcheck/detail/Utility.h
-        sed -i '1i#include <cstdint>' pisa/external/rapidcheck/src/detail/Base64.h external/rapidcheck/src/detail/Base64.cpp
+        sed -i '1i#include <cstdint>' pisa/external/rapidcheck/src/detail/Base64.h pisa/external/rapidcheck/src/detail/Base64.cpp
     
     - uses: pypa/cibuildwheel@v3.2.1
       with:
