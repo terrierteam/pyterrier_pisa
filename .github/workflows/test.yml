@@ -2,7 +2,7 @@ name: test
 
 on:
   push: {branches: [main]} # pushes to main
-  pull_request: {} # all PRs
+  pull_request: # all PRs
   schedule: [cron: '0 12 * * 3'] # every Wednesday at noon
 
 jobs:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
 
     steps:
 
@@ -19,7 +19,7 @@ jobs:
         submodules: recursive
 
     - name: Setup java
-      uses: actions/setup-java@v7
+      uses: actions/setup-java@v6
       with:
         java-version: 13
         architecture: 'x64'
