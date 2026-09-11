@@ -26,7 +26,7 @@ jobs:
       with:
         output-dir: wheelhouse
       env:
-        CIBW_BEFORE_BUILD: "python -m pip install scikit-build-core 'tbb<=2020.3.254' numpy cmake ninja -v"
+        CIBW_BEFORE_BUILD: "python -m pip install scikit-build-core 'tbb<=2020.3.254' numpy<=2.5.0 cmake ninja -v"
         CIBW_BUILD_VERBOSITY: '1'
         CIBW_BEFORE_ALL_LINUX: "gcc --version"
         CIBW_ARCHS_LINUX: "x86_64"
