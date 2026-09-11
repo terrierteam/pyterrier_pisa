@@ -62,7 +62,7 @@ jobs:
         CIBW_ENVIRONMENT: >
           CMAKE_POLICY_VERSION_MINIMUM=3.5
           CFLAGS="-O3 -march=x86-64 -mtune=generic -fno-tree-vectorize -mno-avx512f -mno-avx512dq -mno-avx512bw -mno-avx512vl"
-          CXXFLAGS="-O3 -march=x86-64 -mtune=generic -fno-tree-vectorize -mno-avx512f -mno-avx512dq -mno-avx512bw -mno-avx512vl"
+          CXXFLAGS="-O3 -march=x86-64 -mtune=generic -fno-tree-vectorize -mno-avx512f -mno-avx512dq -mno-avx512bw -mno-avx512vl -Wno-error=changes-meaning"
     
     - uses: actions/upload-artifact@v7
       with:
