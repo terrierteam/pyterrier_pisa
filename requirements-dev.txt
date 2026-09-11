@@ -3,4 +3,4 @@ pytest
 pytest-subtests
 pytest-cov
 pytest-json-report
-ruff
+ruff<0.16
