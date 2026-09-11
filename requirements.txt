@@ -2,5 +2,6 @@ python_terrier>=0.9.1
 pyterrier-alpha>=0.2.0
 numpy<3.0.0
 tqdm
+# if tbb is changed, change also the version in deploy.yml too
 tbb<=2020.3.254
 enum-tools
