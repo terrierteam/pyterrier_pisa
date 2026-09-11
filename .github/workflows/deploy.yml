@@ -22,10 +22,10 @@ jobs:
           - cp312-manylinux_x86_64
           - cp313-manylinux_x86_64
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         submodules: recursive
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v7
       with:
         python-version: '3.x'
     
@@ -63,7 +63,7 @@ jobs:
           CFLAGS="-O3 -march=x86-64 -mtune=generic -fno-tree-vectorize -mno-avx512f -mno-avx512dq -mno-avx512bw -mno-avx512vl"
           CXXFLAGS="-O3 -march=x86-64 -mtune=generic -fno-tree-vectorize -mno-avx512f -mno-avx512dq -mno-avx512bw -mno-avx512vl"
     
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: bdist-manylinux2010-${{ matrix.cibw_build }}
         path: wheelhouse/*
@@ -82,7 +82,7 @@ jobs:
         python -m pip install --upgrade pip
         pip install twine
 
-    - uses: actions/download-artifact@v4.1.7
+    - uses: actions/download-artifact@v8
       with:
         pattern: bdist-manylinux2010-*
         merge-multiple: true
