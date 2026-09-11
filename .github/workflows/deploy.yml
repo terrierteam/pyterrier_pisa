@@ -57,7 +57,7 @@ jobs:
           python -m zipfile -e {wheel} /tmp/wheelcheck &&
           echo "Scanning for AVX-512 instructions..." &&
           if objdump -d /tmp/wheelcheck/**/*.so 2>/dev/null |  grep -qE "zmm|vmovdqu64|vmovdqa64|vpbroadcast"; then
-              echo "ERROR: AVX-512 instructions found in wheel" &&
+              echo "ERROR: AVX-512 instructions found in wheel:" && objdump -d /tmp/wheelcheck/**/*.so 2>/dev/null |  grep -qE "zmm|vmovdqu64|vmovdqa64|vpbroadcast" &&
               exit 1
           fi &&
           PYTHON=`python -c "import sys; print(sys.executable)"` &&
