@@ -14,19 +14,19 @@ jobs:
 
     steps:
 
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         submodules: recursive
 
     - name: Setup java
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v7
       with:
         java-version: 13
         architecture: 'x64'
         distribution: 'zulu'
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -41,7 +41,7 @@ jobs:
         pip install dist/*.whl
         pip install -r requirements-dev.txt
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: bdist-manylinux2010-py${{ matrix.python-version }}
         path: dist/*.whl
