@@ -1,6 +1,8 @@
 python_terrier>=0.9.1
 pyterrier-alpha>=0.2.0
-numpy<2.5.0
+# if numpy is changed, change also the version in deploy.yml too and the build part of pyproject.toml
+# numpy<=2.5.0 currently required for manylinux having GCC 10.2, while numpy 2.5.1 and onwards require GCC 10.3
+numpy<=2.5.0
 tqdm
 # if tbb is changed, change also the version in deploy.yml too
 tbb<=2020.3.254
