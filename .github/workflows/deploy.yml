@@ -21,6 +21,7 @@ jobs:
           - cp311-manylinux_x86_64
           - cp312-manylinux_x86_64
           - cp313-manylinux_x86_64
+          - cp314-manylinux_x86_64
     steps:
     - uses: actions/checkout@v7
       with:
