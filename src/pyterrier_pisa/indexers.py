@@ -64,8 +64,12 @@ class PisaIndexer(pt.Indexer):
         'format': 'pisa',
         'package_hint': 'pyterrier-pisa',
         'stemmer': self.stemmer.value,
+        'indexer': self._indexer_kind(),
       }, fout)
     return pyterrier_pisa.PisaIndex(path, batch_size=self.batch_size, stemmer=self.stemmer, text_field=self.text_field, threads=self.threads)
+
+  def _indexer_kind(self):
+    return 'text'
 
   def _index(self, it):
     with tempfile.TemporaryDirectory() as d:
@@ -109,15 +113,38 @@ class PisaIndexer(pt.Indexer):
       raise RuntimeError(
         f'Cannot append with stemmer={self.stemmer.value!r}; index at {path} was built with '
         f'stemmer={config.get("stemmer")!r}. Construct the indexer with the matching stemmer.')
+    expected_kind = self._indexer_kind()
+    existing_kind = config.get('indexer')
+    if existing_kind is None:
+      warn(
+        f'Index at {path} does not record which indexer built it (it may predate append support, '
+        f'or have been imported, e.g. via from_ciff); proceeding with append using a '
+        f'{expected_kind!r} indexer, but mixing indexing methods on the same index can silently '
+        'produce inconsistent scores.')
+    elif existing_kind != expected_kind:
+      raise RuntimeError(
+        f'Cannot append using a {expected_kind!r} indexer to an index at {path} that was built '
+        f'with a {existing_kind!r} indexer -- mixing indexing methods would silently produce '
+        'inconsistent scores.')
 
-    # Load the existing lexicon, in on-disk (term-id) order.
+    # Load the existing lexicon (in on-disk/term-id order) and docnos (to reject duplicates).
+    # Both are read fully into memory, same as e.g. PisaIndex.get_corpus_iter already does for
+    # the term lexicon.
     lexicon = {}
     with (path/'fwd.terms').open('rt') as f_lex:
       for term in f_lex:
         term = term.rstrip('\n')
         lexicon[term] = len(lexicon)
     old_term_count = len(lexicon)
+    docnos = set()
+    with (path/'fwd.documents').open('rt') as f_docs:
+      for docno in f_docs:
+        docnos.add(docno.rstrip('\n'))
     docid = _pisathon.num_docs(str(path))
+
+    # Record current sizes so a failure partway through the batch loop below can be rolled back.
+    docs_offset = (path/'fwd.documents').stat().st_size
+    terms_offset = (path/'fwd.terms').stat().st_size
 
     # Stage the existing (already-merged & remapped) inverted index as "batch 0". Its on-disk
     # format is identical to a batch file's (pisa::invert::merge_batches produces the same
@@ -127,37 +154,59 @@ class PisaIndexer(pt.Indexer):
     (path/'inv.freqs').rename(path/'inv.batch.0.freqs')
     (path/'inv.sizes').rename(path/'inv.batch.0.sizes')
     batch_term_counts = {0: old_term_count}
+    bidx = 0
 
-    with (path/'fwd.documents').open('at') as f_docs, (path/'fwd.terms').open('at') as f_lex:
-      bidx = 0
-      for bidx, batch in enumerate(more_itertools.chunked(it, self.batch_size), start=1):
-        _logger.info(f'appending batch {bidx}: documents [{docid},{docid+len(batch)})')
-        inv_did = defaultdict(list)
-        inv_score = defaultdict(list)
-        lens = []
-        for doc in batch:
-          doclen = 0
-          f_docs.write(doc['docno']+'\n')
-          for term, score in self._doc_toks(doc).items():
-            score = int(score)
-            if score <= 0:
-              continue
-            doclen += score
-            if term not in lexicon:
-              lexicon[term] = len(lexicon)
-              f_lex.write(term+'\n')
-            inv_did[lexicon[term]].append(docid)
-            inv_score[lexicon[term]].append(score)
-          lens.append(doclen)
-          docid += 1
-        batch_term_counts[bidx] = len(lexicon)
-        with (path/f'inv.batch.{bidx}.docs').open('wb') as f_did, (path/f'inv.batch.{bidx}.freqs').open('wb') as f_score, (path/f'inv.batch.{bidx}.sizes').open('wb') as f_len:
-          f_did.write(np.array([1, len(batch)], dtype=np.uint32).tobytes())
-          for i in range(len(lexicon)):
-            doclen = len(inv_did[i])
-            f_did.write(np.array([doclen] + inv_did[i], dtype=np.uint32).tobytes())
-            f_score.write(np.array([doclen] + inv_score[i], dtype=np.uint32).tobytes())
-          f_len.write(np.array([len(lens)] + lens, dtype=np.uint32).tobytes())
+    try:
+      with (path/'fwd.documents').open('at') as f_docs, (path/'fwd.terms').open('at') as f_lex:
+        for bidx, batch in enumerate(more_itertools.chunked(it, self.batch_size), start=1):
+          _logger.info(f'appending batch {bidx}: documents [{docid},{docid+len(batch)})')
+          inv_did = defaultdict(list)
+          inv_score = defaultdict(list)
+          lens = []
+          for doc in batch:
+            docno = doc['docno']
+            if docno in docnos:
+              raise ValueError(f'Cannot append: docno {docno!r} already exists in the index at {path}')
+            docnos.add(docno)
+            doclen = 0
+            f_docs.write(docno+'\n')
+            for term, score in self._doc_toks(doc).items():
+              score = int(score)
+              if score <= 0:
+                continue
+              doclen += score
+              if term not in lexicon:
+                lexicon[term] = len(lexicon)
+                f_lex.write(term+'\n')
+              inv_did[lexicon[term]].append(docid)
+              inv_score[lexicon[term]].append(score)
+            lens.append(doclen)
+            docid += 1
+          batch_term_counts[bidx] = len(lexicon)
+          with (path/f'inv.batch.{bidx}.docs').open('wb') as f_did, (path/f'inv.batch.{bidx}.freqs').open('wb') as f_score, (path/f'inv.batch.{bidx}.sizes').open('wb') as f_len:
+            f_did.write(np.array([1, len(batch)], dtype=np.uint32).tobytes())
+            for i in range(len(lexicon)):
+              doclen = len(inv_did[i])
+              f_did.write(np.array([doclen] + inv_did[i], dtype=np.uint32).tobytes())
+              f_score.write(np.array([doclen] + inv_score[i], dtype=np.uint32).tobytes())
+            f_len.write(np.array([len(lens)] + lens, dtype=np.uint32).tobytes())
+    except BaseException:
+      # Undo the batch-0 staging and any newly-written batches/appended docnos/terms, so a
+      # failure partway through (bad input, a duplicate docno, an interrupt) leaves the index
+      # exactly as it was before this call rather than half-migrated.
+      with (path/'fwd.documents').open('r+b') as f:
+        f.truncate(docs_offset)
+      with (path/'fwd.terms').open('r+b') as f:
+        f.truncate(terms_offset)
+      for i in range(1, bidx + 1):
+        for suffix in ('docs', 'freqs', 'sizes'):
+          fp = path/f'inv.batch.{i}.{suffix}'
+          if fp.exists():
+            fp.unlink()
+      (path/'inv.batch.0.docs').rename(path/'inv.docs')
+      (path/'inv.batch.0.freqs').rename(path/'inv.freqs')
+      (path/'inv.batch.0.sizes').rename(path/'inv.sizes')
+      raise
 
     if bidx == 0:
       # no new documents were provided -- undo the batch-0 staging and leave the index untouched
@@ -166,6 +215,8 @@ class PisaIndexer(pt.Indexer):
       (path/'inv.batch.0.sizes').rename(path/'inv.sizes')
       return
 
+    # From here on, only deterministic file operations over data already written to disk remain
+    # (no more user-supplied documents flow through) -- not wrapped in the rollback above.
     _pad_and_merge_batches(path, batch_term_counts, len(lexicon))
     _remap_terms_alphabetically(path, lexicon)
 
@@ -178,6 +229,9 @@ class PisaToksIndexer(PisaIndexer):
 
   def _doc_toks(self, doc):
     return {term: int(score * self.scale) for term, score in doc[self.text_field].items()}
+
+  def _indexer_kind(self):
+    return 'toks'
 
   def _index(self, it):
     lexicon = {}
