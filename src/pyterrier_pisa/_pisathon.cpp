@@ -6,6 +6,7 @@
 #include <query/term_processor.hpp>
 #include <gsl/span>
 #include <algorithm>
+#include <memory>
 #include <spdlog/spdlog.h>
 #include <tbb/global_control.h>
 #include <tbb/task_group.h>
@@ -616,6 +617,322 @@ static PyObject *py_build_binlex(PyObject *self, PyObject *args, PyObject *kwarg
 
 
 //---------------------------------------------------------------------------------------------------------
+//                    Index Merging
+//---------------------------------------------------------------------------------------------------------
+
+namespace {
+
+// Per-input merge state. Every input's fwd.terms is required to be sorted (both build paths in this
+// package produce sorted lexicons), so the merge is a k-way merge-join over the term lists, advancing
+// each input's posting-list iterator in lockstep with its term index.
+struct MergeInput {
+  fs::path dir;
+  std::vector<std::string> terms;
+  std::vector<std::string> documents;
+  std::unique_ptr<binary_freq_collection> freq;
+  std::unique_ptr<binary_collection> sizes;
+  // binary_freq_collection::iterator / binary_collection::const_iterator hold a const pointer
+  // member, so they're constructible but not assignable -- heap-allocate so `in.post_it = ...`
+  // (reassigning after default MergeInput construction) only has to move a pointer.
+  std::unique_ptr<binary_freq_collection::iterator> post_it;
+  std::unique_ptr<binary_freq_collection::iterator> post_end;
+  size_t term_idx = 0;
+  uint64_t docid_offset = 0;
+  bool has_fwd = false;
+  std::unique_ptr<binary_collection> fwd;
+  std::unique_ptr<binary_collection::const_iterator> fwd_it;
+  // old term id (this input's) -> new term id (merged output's); filled in as each term is emitted.
+  std::vector<uint32_t> remap;
+};
+
+void require_file(fs::path const& dir, const char* name) {
+  if (!fs::exists(dir/name)) {
+    throw std::runtime_error(fmt::format("Cannot merge: {} not found in index at {}", name, dir.string()));
+  }
+}
+
+}  // namespace
+
+static PyObject *py_merge(PyObject *self, PyObject *args, PyObject *kwargs) {
+  PyObject* in_dirs;
+  const char* out_dir;
+  static const char *kwlist[] = {"index_dirs", "out_dir", NULL};
+  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "Os", const_cast<char **>(kwlist), &in_dirs, &out_dir)) {
+    return NULL;
+  }
+
+  PyObject* seq = PySequence_Fast(in_dirs, "index_dirs must be a sequence of paths");
+  if (!seq) {
+    return NULL;
+  }
+  std::vector<std::string> dirs;
+  Py_ssize_t n_dirs = PySequence_Fast_GET_SIZE(seq);
+  for (Py_ssize_t i = 0; i < n_dirs; i++) {
+    PyObject* item = PySequence_Fast_GET_ITEM(seq, i);
+    const char* s = PyUnicode_AsUTF8(item);
+    if (s == NULL) {
+      Py_DECREF(seq);
+      return NULL;
+    }
+    dirs.emplace_back(s);
+  }
+  Py_DECREF(seq);
+
+  bool wrote_fwd = false;
+  bool partial_fwd = false;
+  std::string err;
+
+  Py_BEGIN_ALLOW_THREADS
+  try {
+    fs::path f_out_dir(out_dir);
+    std::vector<MergeInput> inputs(dirs.size());
+    uint64_t total_docs = 0;
+    size_t fwd_count = 0;
+
+    for (size_t i = 0; i < dirs.size(); i++) {
+      auto& in = inputs[i];
+      in.dir = dirs[i];
+
+      require_file(in.dir, "fwd.terms");
+      require_file(in.dir, "fwd.documents");
+      require_file(in.dir, "inv.docs");
+      require_file(in.dir, "inv.freqs");
+      require_file(in.dir, "inv.sizes");
+
+      in.terms = io::read_string_vector((in.dir/"fwd.terms").string());
+      for (size_t t = 1; t < in.terms.size(); t++) {
+        if (!(in.terms[t - 1] < in.terms[t])) {
+          throw std::runtime_error(fmt::format(
+            "Cannot merge: index at {} does not have a sorted, deduplicated term lexicon "
+            "(found '{}' before '{}')", in.dir.string(), in.terms[t - 1], in.terms[t]));
+        }
+      }
+
+      in.documents = io::read_string_vector((in.dir/"fwd.documents").string());
+      in.freq = std::make_unique<binary_freq_collection>((in.dir/"inv").string().c_str());
+      if (in.documents.size() != in.freq->num_docs()) {
+        throw std::runtime_error(fmt::format(
+          "Cannot merge: index at {} is inconsistent (fwd.documents has {} entries, inv reports {} documents)",
+          in.dir.string(), in.documents.size(), in.freq->num_docs()));
+      }
+
+      in.sizes = std::make_unique<binary_collection>((in.dir/"inv.sizes").string().c_str());
+      auto sizes_seq = *in.sizes->begin();
+      if (sizes_seq.size() != in.freq->num_docs()) {
+        throw std::runtime_error(fmt::format(
+          "Cannot merge: index at {} is inconsistent (inv.sizes has {} entries, inv reports {} documents)",
+          in.dir.string(), sizes_seq.size(), in.freq->num_docs()));
+      }
+
+      in.docid_offset = total_docs;
+      total_docs += in.freq->num_docs();
+      in.post_it = std::make_unique<binary_freq_collection::iterator>(in.freq->begin());
+      in.post_end = std::make_unique<binary_freq_collection::iterator>(in.freq->end());
+      in.remap.assign(in.terms.size(), 0);
+
+      in.has_fwd = fs::exists(in.dir/"fwd");
+      if (in.has_fwd) {
+        fwd_count++;
+        in.fwd = std::make_unique<binary_collection>((in.dir/"fwd").string().c_str());
+        in.fwd_it = std::make_unique<binary_collection::const_iterator>(in.fwd->begin());
+        ++(*in.fwd_it);  // skip the [1][doc_count] header sequence
+      }
+    }
+
+    if (total_docs >= (uint64_t(1) << 32)) {
+      throw std::runtime_error(fmt::format(
+        "Cannot merge: the merged index would have {} documents, exceeding the 32-bit document id limit",
+        total_docs));
+    }
+
+    bool do_fwd = !dirs.empty() && fwd_count == dirs.size();
+    partial_fwd = fwd_count > 0 && fwd_count < dirs.size();
+
+    fs::create_directories(f_out_dir);
+
+    // inv.sizes: a single sequence covering every document, so this is a plain concatenation of each
+    // input's (also single-sequence) sizes list.
+    {
+      std::ofstream sos((f_out_dir/"inv.sizes").string(), std::ios::binary);
+      uint32_t total_docs32 = (uint32_t)total_docs;
+      sos.write(reinterpret_cast<const char*>(&total_docs32), sizeof(total_docs32));
+      for (auto& in : inputs) {
+        auto seq = *in.sizes->begin();
+        sos.write(reinterpret_cast<const char*>(seq.begin()), seq.size() * sizeof(uint32_t));
+      }
+    }
+
+    std::vector<std::string> out_documents;
+    out_documents.reserve(total_docs);
+    for (auto& in : inputs) {
+      for (auto& d : in.documents) {
+        out_documents.push_back(d);
+      }
+    }
+
+    // Main k-way merge over the (sorted) term lexicons. Because each input's docids are shifted by a
+    // fixed offset and inputs are consumed in a fixed order, concatenating matching inputs' posting
+    // lists in that same order yields an already-ascending merged list -- no interleaving needed.
+    std::vector<std::string> out_terms;
+    {
+      std::ofstream dos((f_out_dir/"inv.docs").string(), std::ios::binary);
+      std::ofstream fos((f_out_dir/"inv.freqs").string(), std::ios::binary);
+      uint32_t one = 1;
+      uint32_t total_docs32 = (uint32_t)total_docs;
+      dos.write(reinterpret_cast<const char*>(&one), sizeof(one));
+      dos.write(reinterpret_cast<const char*>(&total_docs32), sizeof(total_docs32));
+
+      std::vector<uint32_t> merged_docs;
+      std::vector<uint32_t> merged_freqs;
+
+      while (true) {
+        int best = -1;
+        for (size_t i = 0; i < inputs.size(); i++) {
+          if (inputs[i].term_idx >= inputs[i].terms.size()) {
+            continue;
+          }
+          if (best == -1 || inputs[i].terms[inputs[i].term_idx] < inputs[best].terms[inputs[best].term_idx]) {
+            best = (int)i;
+          }
+        }
+        if (best == -1) {
+          break;  // every input's term list is exhausted
+        }
+
+        std::string head_term = inputs[best].terms[inputs[best].term_idx];
+        uint32_t new_term_id = (uint32_t)out_terms.size();
+        out_terms.push_back(head_term);
+
+        merged_docs.clear();
+        merged_freqs.clear();
+
+        for (size_t i = 0; i < inputs.size(); i++) {
+          auto& in = inputs[i];
+          if (in.term_idx < in.terms.size() && in.terms[in.term_idx] == head_term) {
+            if (*in.post_it == *in.post_end) {
+              throw std::runtime_error(fmt::format(
+                "Cannot merge: index at {} has fewer posting lists than terms; it may be corrupt",
+                in.dir.string()));
+            }
+            auto const& post_seq = **in.post_it;
+            if (post_seq.docs.size() != post_seq.freqs.size()) {
+              throw std::runtime_error(fmt::format(
+                "Cannot merge: index at {} has mismatched docs/freqs list lengths for term '{}'",
+                in.dir.string(), head_term));
+            }
+            for (size_t p = 0; p < post_seq.docs.size(); p++) {
+              merged_docs.push_back((uint32_t)(post_seq.docs[p] + in.docid_offset));
+              merged_freqs.push_back(post_seq.freqs[p]);
+            }
+            in.remap[in.term_idx] = new_term_id;
+            in.term_idx++;
+            ++(*in.post_it);
+          }
+        }
+
+        if (merged_docs.empty()) {
+          // Can't happen if every input is itself a valid final index (every listed term has a
+          // non-empty posting list), but guard against a hand-built or corrupt input.
+          throw std::runtime_error(fmt::format(
+            "Cannot merge: posting list for term '{}' would be empty after merging", head_term));
+        }
+
+        uint32_t dlen = (uint32_t)merged_docs.size();
+        dos.write(reinterpret_cast<const char*>(&dlen), sizeof(dlen));
+        dos.write(reinterpret_cast<const char*>(merged_docs.data()), dlen * sizeof(uint32_t));
+        fos.write(reinterpret_cast<const char*>(&dlen), sizeof(dlen));
+        fos.write(reinterpret_cast<const char*>(merged_freqs.data()), dlen * sizeof(uint32_t));
+      }
+
+      for (auto& in : inputs) {
+        if (*in.post_it != *in.post_end) {
+          throw std::runtime_error(fmt::format(
+            "Cannot merge: index at {} has more posting lists than terms; it may be corrupt",
+            in.dir.string()));
+        }
+      }
+    }
+
+    {
+      std::ofstream fts((f_out_dir/"fwd.terms").string());
+      for (auto& t : out_terms) {
+        fts << t << "\n";
+      }
+    }
+    encode_payload_vector(out_terms.begin(), out_terms.end()).to_file((f_out_dir/"fwd.termlex").string());
+
+    {
+      std::ofstream fds((f_out_dir/"fwd.documents").string());
+      for (auto& d : out_documents) {
+        fds << d << "\n";
+      }
+    }
+    encode_payload_vector(out_documents.begin(), out_documents.end()).to_file((f_out_dir/"fwd.doclex").string());
+
+    // fwd (raw forward index): only when every input has one, remapping each input's term ids into
+    // the merged id space via the `remap` table built during the postings merge above.
+    if (do_fwd) {
+      wrote_fwd = true;
+      std::ofstream ffs((f_out_dir/"fwd").string(), std::ios::binary);
+      uint32_t one = 1;
+      uint32_t total_docs32 = (uint32_t)total_docs;
+      ffs.write(reinterpret_cast<const char*>(&one), sizeof(one));
+      ffs.write(reinterpret_cast<const char*>(&total_docs32), sizeof(total_docs32));
+
+      for (auto& in : inputs) {
+        for (uint64_t d = 0; d < in.freq->num_docs(); d++) {
+          if (*in.fwd_it == in.fwd->end()) {
+            throw std::runtime_error(fmt::format(
+              "Cannot merge: index at {} has fewer documents in fwd than expected; it may be corrupt",
+              in.dir.string()));
+          }
+          auto seq = **in.fwd_it;
+          std::vector<uint32_t> remapped(seq.size());
+          for (size_t p = 0; p < seq.size(); p++) {
+            uint32_t old_id = seq[p];
+            if (old_id >= in.remap.size()) {
+              throw std::runtime_error(fmt::format(
+                "Cannot merge: index at {} has an out-of-range term id in its forward index; it may be corrupt",
+                in.dir.string()));
+            }
+            remapped[p] = in.remap[old_id];
+          }
+          uint32_t dlen = (uint32_t)remapped.size();
+          ffs.write(reinterpret_cast<const char*>(&dlen), sizeof(dlen));
+          ffs.write(reinterpret_cast<const char*>(remapped.data()), dlen * sizeof(uint32_t));
+          ++(*in.fwd_it);
+        }
+      }
+
+      // fwd.urls is always written alongside fwd by the same builder; merge it only when every
+      // input that has fwd also has it, otherwise omit rather than emit misaligned/partial data.
+      bool do_urls = std::all_of(inputs.begin(), inputs.end(), [](MergeInput const& in) {
+        return fs::exists(in.dir/"fwd.urls");
+      });
+      if (do_urls) {
+        std::ofstream fus((f_out_dir/"fwd.urls").string());
+        for (auto& in : inputs) {
+          for (auto& u : io::read_string_vector((in.dir/"fwd.urls").string())) {
+            fus << u << "\n";
+          }
+        }
+      }
+    }
+  } catch (std::exception& e) {
+    err = e.what();
+  }
+  Py_END_ALLOW_THREADS
+
+  if (!err.empty()) {
+    PyErr_SetString(PyExc_RuntimeError, err.c_str());
+    return NULL;
+  }
+
+  return Py_BuildValue("(OO)", wrote_fwd ? Py_True : Py_False, partial_fwd ? Py_True : Py_False);
+}
+
+
+//---------------------------------------------------------------------------------------------------------
 //                    Extras
 //---------------------------------------------------------------------------------------------------------
 
@@ -688,6 +1005,7 @@ static PyTypeObject RetrievalContextType = {
 
 static PyMethodDef pisathon_methods[] = {
   {"index",         (PyCFunction)py_index,         METH_VARARGS,                 "index"},
+  {"merge",         (PyCFunction)py_merge,         METH_VARARGS | METH_KEYWORDS, "merge"},
   {"merge_inv",     (PyCFunction)py_merge_inv,     METH_VARARGS,                 "merge_inv"},
   {"prepare_index", (PyCFunction)py_prepare_index, METH_VARARGS | METH_KEYWORDS, "prepare_index"},
   {"retrieve",      (PyCFunction)py_retrieve,      METH_VARARGS | METH_KEYWORDS, "retrieve"},

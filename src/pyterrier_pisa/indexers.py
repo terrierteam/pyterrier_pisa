@@ -55,8 +55,16 @@ class PisaIndexer(pt.Indexer):
         'format': 'pisa',
         'package_hint': 'pyterrier-pisa',
         'stemmer': self.stemmer.value,
+        'indexer': self._indexer_kind(),
+        **self._extra_meta(),
       }, fout)
     return pyterrier_pisa.PisaIndex(path, batch_size=self.batch_size, stemmer=self.stemmer, text_field=self.text_field, threads=self.threads)
+
+  def _indexer_kind(self):
+    return 'text'
+
+  def _extra_meta(self):
+    return {}
 
   def _index(self, it):
     with tempfile.TemporaryDirectory() as d:
@@ -80,6 +88,12 @@ class PisaToksIndexer(PisaIndexer):
     super().__init__(path, text_field, mode, pyterrier_pisa.PisaStemmer.none, threads, batch_size=batch_size)
     self.scale = float(scale)
     assert self.scale > 0
+
+  def _indexer_kind(self):
+    return 'toks'
+
+  def _extra_meta(self):
+    return {'toks_scale': self.scale}
 
   def _index(self, it):
     lexicon = {}

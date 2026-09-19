@@ -2,6 +2,7 @@ from typing import List
 import numpy as np
 import json
 from pathlib import Path
+import shutil
 import tempfile
 import os
 import more_itertools
@@ -351,6 +352,7 @@ class PisaIndex(pta.Artifact, pt.Indexer):
         'format': 'pisa',
         'package_hint': 'pyterrier-pisa',
         'stemmer': stemmer.value,
+        'indexer': 'ciff',
       }, fout)
     return PisaIndex(index_path, stemmer=stemmer)
 
@@ -367,6 +369,117 @@ class PisaIndex(pta.Artifact, pt.Indexer):
     except ImportError as ex:
       raise ImportError('pyciff==0.1.1 required') from ex
     pyciff.pisa_to_ciff(str(self.path/'inv'), str(self.path/'fwd.terms'), str(self.path/'fwd.documents'), ciff_file, description)
+
+  @staticmethod
+  def merge(indexes: Iterable[Union['PisaIndex', str]], index_path, overwrite: bool = False, force: bool = False) -> 'PisaIndex':
+    """Merges one or more already-built PISA indexes into a new index.
+
+    This does no parsing or tokenization -- it is a structural merge of already-inverted indexes,
+    so it is much cheaper than re-indexing, and is a useful building block for incremental
+    indexing (build a new segment normally, then merge it into the existing index).
+
+    Note that this does **not** detect or reject duplicate docnos across the inputs: a docno that
+    appears in more than one input index will simply appear more than once in the merged index
+    and in retrieval results, exactly as PISA itself tolerates.
+
+    Args:
+      indexes: the indexes to merge, as ``PisaIndex`` objects or paths. Must be non-empty. A
+        single index is allowed (this compacts/copies it to ``index_path``).
+      index_path: the path to write the merged index to. Must not be the same as, contain, or be
+        contained by any input index's path.
+      overwrite: if True, ``index_path`` is removed first if it already exists. Defaults to False.
+      force: if True, proceed even if the inputs were built with different stemmers, different
+        indexing methods (plaintext text vs. pre-tokenized ``toks``), or (for ``toks`` indexes)
+        different ``scale`` values -- any of which would otherwise raise, since merging them would
+        silently produce incoherent scores. Indexes that don't record this information at all
+        (built before this feature existed, or imported via ``from_ciff``) always proceed with a
+        warning, since there's nothing to check.
+    """
+    indexes = [idx if isinstance(idx, PisaIndex) else PisaIndex(idx) for idx in indexes]
+    if len(indexes) == 0:
+      raise ValueError('PisaIndex.merge() requires at least one index to merge')
+
+    out_path = Path(index_path).resolve()
+    for idx in indexes:
+      in_path = idx.path.resolve()
+      if out_path == in_path or out_path in in_path.parents or in_path in out_path.parents:
+        raise ValueError(
+          f'Cannot merge into {out_path}: it is the same as, contains, or is contained by input '
+          f'index {in_path}. Merge into a separate directory instead.')
+
+    metas = []
+    for idx in indexes:
+      meta_file = idx.path/'pt_meta.json'
+      if meta_file.exists():
+        with meta_file.open('rt') as fin:
+          metas.append(json.load(fin))
+      else:
+        metas.append({})
+
+    def _check_consistent(key, label):
+      known = [(i, m[key]) for i, m in enumerate(metas) if key in m]
+      if len(known) < len(metas):
+        warn(
+          f'Not all indexes being merged record {label!r} in their metadata (they may predate '
+          'this check, or have been imported, e.g. via from_ciff); proceeding without validating '
+          f'it for those indexes.')
+      values = {v for _, v in known}
+      if len(values) > 1:
+        msg = 'Cannot merge indexes with different {}: {}'.format(
+          label, ', '.join(f'{indexes[i].path}={v!r}' for i, v in known))
+        if force:
+          warn(msg)
+        else:
+          raise ValueError(msg)
+
+    _check_consistent('stemmer', 'stemmer')
+    _check_consistent('indexer', 'indexer')
+    toks_scales = {m['toks_scale'] for m in metas if m.get('indexer') == 'toks' and 'toks_scale' in m}
+    if len(toks_scales) > 1:
+      msg = f'Cannot merge toks indexes with different toks_scale values: {sorted(toks_scales)}'
+      if force:
+        warn(msg)
+      else:
+        raise ValueError(msg)
+
+    total_docs = sum(idx.num_docs() for idx in indexes)
+    if total_docs >= 2**32:
+      raise ValueError(
+        f'Cannot merge: the merged index would have {total_docs} documents, exceeding the '
+        '32-bit document id limit')
+
+    if out_path.exists():
+      if overwrite:
+        warn(f'Removing {out_path}')
+        shutil.rmtree(out_path)
+      else:
+        raise RuntimeError(f'A PISA index already exists at {out_path}. If you want to overwrite it, set overwrite=True')
+    out_path.mkdir(parents=True, exist_ok=True)
+
+    _, partial_fwd = _pisathon.merge([str(idx.path) for idx in indexes], str(out_path))
+    if partial_fwd:
+      warn(
+        'Some but not all of the indexes being merged have a forward index (fwd); the merged '
+        'index will not have one, so get_corpus_iter() will not be available on it.')
+
+    stemmer = next((m['stemmer'] for m in metas if 'stemmer' in m), indexes[0].stemmer.value)
+    out_meta = {
+      'type': 'sparse_index',
+      'format': 'pisa',
+      'package_hint': 'pyterrier-pisa',
+      'stemmer': stemmer,
+    }
+    indexer_kind = next((m['indexer'] for m in metas if 'indexer' in m), None)
+    if indexer_kind is not None:
+      out_meta['indexer'] = indexer_kind
+    if toks_scales:
+      out_meta['toks_scale'] = next(iter(toks_scales))
+    # Written last: an interrupted merge leaves a directory without pt_meta.json, so built() (and
+    # hence a subsequent create/append) correctly treats it as not-yet-built rather than corrupt.
+    with open(out_path/'pt_meta.json', 'wt') as fout:
+      json.dump(out_meta, fout)
+
+    return PisaIndex(str(out_path))
 
   def get_corpus_iter(self, field='toks', verbose=True):
     """Iterates over the indexed corpus, yielding a dictionary for each document.
