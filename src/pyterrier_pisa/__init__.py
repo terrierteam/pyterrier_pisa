@@ -199,8 +199,14 @@ class PisaIndex(pta.Artifact, pt.Indexer):
     else:
       return [["docno"] + list(self.text_field)]
 
-  def index(self, it: Iterable[Dict]):
-    """Indexes a collection of documents."""
+  def index(self, it: Iterable[Dict], mode: Optional[Union[PisaIndexingMode, str]] = None):
+    """Indexes a collection of documents.
+
+    Args:
+      it: the iterable of documents to index
+      mode: the indexing mode to use (``create``, ``overwrite``, or ``append``). Defaults to
+        ``overwrite`` or ``create`` based on the ``overwrite`` flag set at construction.
+    """
     it = more_itertools.peekable(it)
     first_doc = it.peek()
     text_field = self.text_field
@@ -214,7 +220,10 @@ class PisaIndex(pta.Artifact, pt.Indexer):
         assert len(text_field) >= 1, f"no str or toks fields found in document. Fields: { {k: type(v) for k, v in first_doc.items()} }"
         warn(f'text_field not specified; indexing all str fields: {text_field}')
 
-    mode = PisaIndexingMode.overwrite if self.overwrite else PisaIndexingMode.create
+    if mode is None:
+      mode = PisaIndexingMode.overwrite if self.overwrite else PisaIndexingMode.create
+    else:
+      mode = PisaIndexingMode(mode)
 
     if isinstance(text_field, str) and isinstance(first_doc[text_field], dict):
       return self.toks_indexer(text_field, mode=mode).index(it)
