@@ -1,8 +1,10 @@
 python_terrier>=0.9.1
 pyterrier-alpha>=0.2.0
-# if numpy is changed, change also the version in deploy.yml too and the build part of pyproject.toml
+# numpy is only capped at build time (build-system.requires in pyproject.toml and CIBW_BEFORE_BUILD in deploy.yml):
 # numpy<=2.5.0 currently required for manylinux having GCC 10.2, while numpy 2.5.1 and onwards require GCC 10.3
-numpy<=2.5.0
+# If the build-time cap is changed, change it in both of those places. Wheels built against numpy 2.5.0 work with newer
+# numpy at runtime, so the runtime requirement is left uncapped (newer numpy has the only cp315 wheels).
+numpy
 tqdm
 # if tbb is changed, change also the version in deploy.yml too
 tbb<=2020.3.254
