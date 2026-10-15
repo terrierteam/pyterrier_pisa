@@ -40,7 +40,7 @@ jobs:
         sed -i '/^#include <limits>$/a #include <cstdint>' pisa/external/rapidcheck/include/rapidcheck/detail/Utility.h 
         sed -i '1i#include <cstdint>' pisa/external/rapidcheck/src/detail/Base64.h pisa/external/rapidcheck/src/detail/Base64.cpp pisa/external/rapidcheck/include/rapidcheck/detail/Serialization.hpp
     
-    - uses: pypa/cibuildwheel@v3.2.1
+    - uses: pypa/cibuildwheel@v4.3.1
       with:
         output-dir: wheelhouse
       env:
